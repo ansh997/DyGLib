@@ -1,3 +1,5 @@
+import os
+getpass.getuser()
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -6,7 +8,8 @@ from pandas.testing import assert_frame_equal
 from distutils.dir_util import copy_tree
 
 
-scratch_location = r'/scratch/hmnshpl'
+# scratch_location = r'/scratch/hmnshpl'
+scratch_location = rf'/scratch/{getpass.getuser()}'
 
 
 def preprocess(dataset_name: str):

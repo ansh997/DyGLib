@@ -227,7 +227,7 @@ if __name__ == "__main__":
             train_y_trues = torch.cat(train_y_trues, dim=0)
             train_y_predicts = torch.cat(train_y_predicts, dim=0)
 
-            train_metrics = get_node_classification_metrics(predicts=train_y_predicts, labels=train_y_trues)
+            train_metrics = get_node_classification_metrics(predicts=train_y_predicts, labels=train_y_trues, mrr=args.mrr)
 
             val_total_loss, val_metrics = evaluate_model_node_classification(model_name=args.model_name,
                                                                              model=model,
@@ -236,7 +236,8 @@ if __name__ == "__main__":
                                                                              evaluate_data=val_data,
                                                                              loss_func=loss_func,
                                                                              num_neighbors=args.num_neighbors,
-                                                                             time_gap=args.time_gap)
+                                                                             time_gap=args.time_gap,
+                                                                             mrr=args.mrr)
 
             logger.info(f'Epoch: {epoch + 1}, learning rate: {optimizer.param_groups[0]["lr"]}, train loss: {train_total_loss:.4f}')
             for metric_name in train_metrics.keys():
@@ -258,7 +259,8 @@ if __name__ == "__main__":
                                                                                    evaluate_data=test_data,
                                                                                    loss_func=loss_func,
                                                                                    num_neighbors=args.num_neighbors,
-                                                                                   time_gap=args.time_gap)
+                                                                                   time_gap=args.time_gap,
+                                                                                   mrr=args.mrr)
 
                 if args.model_name in ['JODIE', 'DyRep', 'TGN']:
                     # reload validation memory bank for saving models
@@ -293,7 +295,8 @@ if __name__ == "__main__":
                                                                              evaluate_data=val_data,
                                                                              loss_func=loss_func,
                                                                              num_neighbors=args.num_neighbors,
-                                                                             time_gap=args.time_gap)
+                                                                             time_gap=args.time_gap,
+                                                                             mrr=args.mrr)
 
         test_total_loss, test_metrics = evaluate_model_node_classification(model_name=args.model_name,
                                                                            model=model,
@@ -302,7 +305,8 @@ if __name__ == "__main__":
                                                                            evaluate_data=test_data,
                                                                            loss_func=loss_func,
                                                                            num_neighbors=args.num_neighbors,
-                                                                           time_gap=args.time_gap)
+                                                                           time_gap=args.time_gap,
+                                                                           mrr=args.mrr)
 
         # store the evaluation metrics at the current run
         val_metric_dict, test_metric_dict = {}, {}

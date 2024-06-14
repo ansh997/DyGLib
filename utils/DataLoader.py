@@ -1,10 +1,12 @@
+import os
+import getpass
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
 import random
 import pandas as pd
 
 
-scratch_location = r'/scratch/hmnshpl'
+scratch_location = rf'/scratch/{getpass.getuser()}'
 
 
 class CustomizedDataset(Dataset):

@@ -18,7 +18,7 @@ from utils.DataLoader import Data
 
 def evaluate_model_link_prediction(model_name: str, model: nn.Module, neighbor_sampler: NeighborSampler, evaluate_idx_data_loader: DataLoader,
                                    evaluate_neg_edge_sampler: NegativeEdgeSampler, evaluate_data: Data, loss_func: nn.Module,
-                                   num_neighbors: int = 20, time_gap: int = 2000):
+                                   num_neighbors: int = 20, time_gap: int = 2000, mrr:bool=False):
     """
     evaluate models on the link prediction task
     :param model_name: str, name of the model
@@ -30,6 +30,7 @@ def evaluate_model_link_prediction(model_name: str, model: nn.Module, neighbor_s
     :param loss_func: nn.Module, loss function
     :param num_neighbors: int, number of neighbors to sample for each node
     :param time_gap: int, time gap for neighbors to compute node features
+    :param mrr: bool, to change the metric to mrr
     :return:
     """
     # Ensures the random sampler uses a fixed seed for evaluation (i.e. we always sample the same negatives for validation / test set)
@@ -147,7 +148,7 @@ def evaluate_model_link_prediction(model_name: str, model: nn.Module, neighbor_s
 
             evaluate_losses.append(loss.item())
 
-            evaluate_metrics.append(get_link_prediction_metrics(predicts=predicts, labels=labels))
+            evaluate_metrics.append(get_link_prediction_metrics(predicts=predicts, labels=labels, mrr=mrr))
 
             evaluate_idx_data_loader_tqdm.set_description(f'evaluate for the {batch_idx + 1}-th batch, evaluate loss: {loss.item()}')
 
@@ -155,7 +156,7 @@ def evaluate_model_link_prediction(model_name: str, model: nn.Module, neighbor_s
 
 
 def evaluate_model_node_classification(model_name: str, model: nn.Module, neighbor_sampler: NeighborSampler, evaluate_idx_data_loader: DataLoader,
-                                       evaluate_data: Data, loss_func: nn.Module, num_neighbors: int = 20, time_gap: int = 2000):
+                                       evaluate_data: Data, loss_func: nn.Module, num_neighbors: int = 20, time_gap: int = 2000, mrr:bool=False):
     """
     evaluate models on the node classification task
     :param model_name: str, name of the model
@@ -166,6 +167,8 @@ def evaluate_model_node_classification(model_name: str, model: nn.Module, neighb
     :param loss_func: nn.Module, loss function
     :param num_neighbors: int, number of neighbors to sample for each node
     :param time_gap: int, time gap for neighbors to compute node features
+    :param mrr: bool, to change metric to mrr
+    
     :return:
     """
     if model_name in ['DyRep', 'TGAT', 'TGN', 'CAWN', 'TCL', 'GraphMixer', 'DyGFormer']:
@@ -237,13 +240,13 @@ def evaluate_model_node_classification(model_name: str, model: nn.Module, neighb
         evaluate_y_trues = torch.cat(evaluate_y_trues, dim=0)
         evaluate_y_predicts = torch.cat(evaluate_y_predicts, dim=0)
 
-        evaluate_metrics = get_node_classification_metrics(predicts=evaluate_y_predicts, labels=evaluate_y_trues)
+        evaluate_metrics = get_node_classification_metrics(predicts=evaluate_y_predicts, labels=evaluate_y_trues, mrr=mrr)
 
     return evaluate_total_loss, evaluate_metrics
 
 
 def evaluate_edge_bank_link_prediction(args: argparse.Namespace, train_data: Data, val_data: Data, test_idx_data_loader: DataLoader,
-                                       test_neg_edge_sampler: NegativeEdgeSampler, test_data: Data):
+                                       test_neg_edge_sampler: NegativeEdgeSampler, test_data: Data, mrr:bool=False):
     """
     evaluate the EdgeBank model for link prediction
     :param args: argparse.Namespace, configuration
@@ -252,6 +255,7 @@ def evaluate_edge_bank_link_prediction(args: argparse.Namespace, train_data: Dat
     :param test_idx_data_loader: DataLoader, test index data loader
     :param test_neg_edge_sampler: NegativeEdgeSampler, test negative edge sampler
     :param test_data: Data, test data
+    :param mrr: to change the metric to mrr
     :return:
     """
     # generate the train_validation split of the data: needed for constructing the memory for EdgeBank
@@ -347,7 +351,7 @@ def evaluate_edge_bank_link_prediction(args: argparse.Namespace, train_data: Dat
 
             test_losses.append(loss.item())
 
-            test_metrics.append(get_link_prediction_metrics(predicts=predicts, labels=labels))
+            test_metrics.append(get_link_prediction_metrics(predicts=predicts, labels=labels, mrr=mrr))
 
             test_idx_data_loader_tqdm.set_description(f'test for the {batch_idx + 1}-th batch, test loss: {loss.item()}')
 
