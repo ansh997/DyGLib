@@ -148,7 +148,7 @@ def evaluate_model_link_prediction(model_name: str, model: nn.Module, neighbor_s
 
             evaluate_losses.append(loss.item())
 
-            evaluate_metrics.append(get_link_prediction_metrics(predicts=predicts, labels=labels, mrr=mrr))
+            evaluate_metrics.append(get_link_prediction_metrics(predicts=predicts, labels=labels))
 
             evaluate_idx_data_loader_tqdm.set_description(f'evaluate for the {batch_idx + 1}-th batch, evaluate loss: {loss.item()}')
 
@@ -240,7 +240,9 @@ def evaluate_model_node_classification(model_name: str, model: nn.Module, neighb
         evaluate_y_trues = torch.cat(evaluate_y_trues, dim=0)
         evaluate_y_predicts = torch.cat(evaluate_y_predicts, dim=0)
 
-        evaluate_metrics = get_node_classification_metrics(predicts=evaluate_y_predicts, labels=evaluate_y_trues, mrr=mrr)
+        evaluate_metrics = get_node_classification_metrics(predicts=evaluate_y_predicts, labels=evaluate_y_trues, 
+                                                        #    mrr=mrr
+                                                           )
 
     return evaluate_total_loss, evaluate_metrics
 

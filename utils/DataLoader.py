@@ -69,7 +69,7 @@ class Data:
         self.num_unique_nodes = len(self.unique_node_ids)
 
 
-def get_link_prediction_data(dataset_name: str, val_ratio: float, test_ratio: float):
+def get_link_prediction_data(dataset_name: str, val_ratio: float, test_ratio: float, sparsify: bool = False):
     """
     generate data for link prediction task (inductive & transductive settings)
     :param dataset_name: str, dataset name
@@ -78,10 +78,11 @@ def get_link_prediction_data(dataset_name: str, val_ratio: float, test_ratio: fl
     :return: node_raw_features, edge_raw_features, (np.ndarray),
             full_data, train_data, val_data, test_data, new_node_val_data, new_node_test_data, (Data object)
     """
+    which_folder = 'sparsified_data'if sparsify else 'processed_data'
     # Load data and train val test split
-    graph_df = pd.read_csv('{}/processed_data/{}/ml_{}.csv'.format(scratch_location, dataset_name, dataset_name))
-    edge_raw_features = np.load('{}/processed_data/{}/ml_{}.npy'.format(scratch_location, dataset_name, dataset_name))
-    node_raw_features = np.load('{}/processed_data/{}/ml_{}_node.npy'.format(scratch_location, dataset_name, dataset_name))
+    graph_df = pd.read_csv('{}/{}/{}/ml_{}.csv'.format(scratch_location, which_folder, dataset_name, dataset_name))
+    edge_raw_features = np.load('{}/{}/{}/ml_{}.npy'.format(scratch_location, which_folder, dataset_name, dataset_name))
+    node_raw_features = np.load('{}/{}/{}/ml_{}_node.npy'.format(scratch_location, which_folder, dataset_name, dataset_name))
 
     NODE_FEAT_DIM = EDGE_FEAT_DIM = 172
     assert NODE_FEAT_DIM >= node_raw_features.shape[1], f'Node feature dimension in dataset {dataset_name} is bigger than {NODE_FEAT_DIM}!'
@@ -182,7 +183,7 @@ def get_link_prediction_data(dataset_name: str, val_ratio: float, test_ratio: fl
     return node_raw_features, edge_raw_features, full_data, train_data, val_data, test_data, new_node_val_data, new_node_test_data
 
 
-def get_node_classification_data(dataset_name: str, val_ratio: float, test_ratio: float):
+def get_node_classification_data(dataset_name: str, val_ratio: float, test_ratio: float, sparsify: bool = False):
     """
     generate data for node classification task
     :param dataset_name: str, dataset name
@@ -191,10 +192,11 @@ def get_node_classification_data(dataset_name: str, val_ratio: float, test_ratio
     :return: node_raw_features, edge_raw_features, (np.ndarray),
             full_data, train_data, val_data, test_data, (Data object)
     """
+    which_folder = 'sparsified_data'if sparsify else 'processed_data'
     # Load data and train val test split
-    graph_df = pd.read_csv('{}/processed_data/{}/ml_{}.csv'.format(scratch_location, dataset_name, dataset_name))
-    edge_raw_features = np.load('{}/processed_data/{}/ml_{}.npy'.format(scratch_location, dataset_name, dataset_name))
-    node_raw_features = np.load('{}/processed_data/{}/ml_{}_node.npy'.format(scratch_location, dataset_name, dataset_name))
+    graph_df = pd.read_csv('{}/{}/{}/ml_{}.csv'.format(scratch_location, which_folder, dataset_name, dataset_name))
+    edge_raw_features = np.load('{}/{}/{}/ml_{}.npy'.format(scratch_location, which_folder, dataset_name, dataset_name))
+    node_raw_features = np.load('{}/{}/{}/ml_{}_node.npy'.format(scratch_location, which_folder, dataset_name, dataset_name))
 
     NODE_FEAT_DIM = EDGE_FEAT_DIM = 172
     assert NODE_FEAT_DIM >= node_raw_features.shape[1], f'Node feature dimension in dataset {dataset_name} is bigger than {NODE_FEAT_DIM}!'

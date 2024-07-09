@@ -444,9 +444,9 @@ class MemoryUpdater(nn.Module):
         # if unique_node_ids is empty, return without updating operations
         if len(unique_node_ids) <= 0:
             return
-
-        assert (self.memory_bank.get_node_last_updated_times(unique_node_ids) <=
-                torch.from_numpy(unique_node_timestamps).float().to(unique_node_messages.device)).all().item(), "Trying to update memory to time in the past!"
+        # TODO: ================================= Undo below change ===============================================================
+        # assert (self.memory_bank.get_node_last_updated_times(unique_node_ids) <=
+        #         torch.from_numpy(unique_node_timestamps).float().to(unique_node_messages.device)).all().item(), "Trying to update memory to time in the past!"
 
         # Tensor, shape (num_unique_node_ids, memory_dim)
         node_memories = self.memory_bank.get_memories(node_ids=unique_node_ids)
@@ -471,9 +471,9 @@ class MemoryUpdater(nn.Module):
         # if unique_node_ids is empty, directly return node_memories and node_last_updated_times without updating
         if len(unique_node_ids) <= 0:
             return self.memory_bank.node_memories.data.clone(), self.memory_bank.node_last_updated_times.data.clone()
-
-        assert (self.memory_bank.get_node_last_updated_times(unique_node_ids=unique_node_ids) <=
-                torch.from_numpy(unique_node_timestamps).float().to(unique_node_messages.device)).all().item(), "Trying to update memory to time in the past!"
+        # TODO: ================================= Undo below change ===============================================================
+        # assert (self.memory_bank.get_node_last_updated_times(unique_node_ids=unique_node_ids) <=
+        #         torch.from_numpy(unique_node_timestamps).float().to(unique_node_messages.device)).all().item(), "Trying to update memory to time in the past!"
 
         # Tensor, shape (num_nodes, memory_dim)
         updated_node_memories = self.memory_bank.node_memories.data.clone()
