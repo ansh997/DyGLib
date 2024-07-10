@@ -113,3 +113,11 @@ DG_data/*/*
 !DG_data/myket/*
 processed_data/*/*
 !processed_data/myket/*
+
+# Pickle files
+*.pkl
+
+# folders to ignore
+saved_models/
+saved_results/
+

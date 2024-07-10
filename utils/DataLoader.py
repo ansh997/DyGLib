@@ -1,6 +1,7 @@
 import os
 import getpass
 from torch.utils.data import Dataset, DataLoader
+from preprocess_data.sparsify_data import EL_sparsify
 import numpy as np
 import random
 import pandas as pd
@@ -78,7 +79,7 @@ def get_link_prediction_data(dataset_name: str, val_ratio: float, test_ratio: fl
     :return: node_raw_features, edge_raw_features, (np.ndarray),
             full_data, train_data, val_data, test_data, new_node_val_data, new_node_test_data, (Data object)
     """
-    which_folder = 'sparsified_data'if sparsify else 'processed_data'
+    which_folder = 'processed_data' # 'sparsified_data'if sparsify else 'processed_data'
     # Load data and train val test split
     graph_df = pd.read_csv('{}/{}/{}/ml_{}.csv'.format(scratch_location, which_folder, dataset_name, dataset_name))
     edge_raw_features = np.load('{}/{}/{}/ml_{}.npy'.format(scratch_location, which_folder, dataset_name, dataset_name))
@@ -99,6 +100,7 @@ def get_link_prediction_data(dataset_name: str, val_ratio: float, test_ratio: fl
 
     # get the timestamp of validate and test set
     val_time, test_time = list(np.quantile(graph_df.ts, [(1 - val_ratio - test_ratio), (1 - test_ratio)]))
+    
 
     src_node_ids = graph_df.u.values.astype(np.longlong)
     dst_node_ids = graph_df.i.values.astype(np.longlong)
@@ -106,6 +108,10 @@ def get_link_prediction_data(dataset_name: str, val_ratio: float, test_ratio: fl
     edge_ids = graph_df.idx.values.astype(np.longlong)
     labels = graph_df.label.values
 
+    # print(train_src_node_ids.shape, train_dst_node_ids.shape,
+    #       train_labels.shape, train_node_interact_times.shape,
+    #       train_edge_ids.shape)
+    
     full_data = Data(src_node_ids=src_node_ids, dst_node_ids=dst_node_ids, node_interact_times=node_interact_times, edge_ids=edge_ids, labels=labels)
 
     # the setting of seed follows previous works
@@ -120,25 +126,70 @@ def get_link_prediction_data(dataset_name: str, val_ratio: float, test_ratio: fl
     # sample nodes which we keep as new nodes (to test inductiveness), so then we have to remove all their edges from training
     # new_test_node_set = set(random.sample(test_node_set, int(0.1 * num_total_unique_node_ids)))  # changed it to list
     new_test_node_set = set(random.sample(sorted(test_node_set), int(0.1 * num_total_unique_node_ids)))
-
+    
+    
+    # train graph df will have ts < val_time
+    if sparsify:
+        train_graph_df = graph_df[graph_df['ts'] < val_time]
+        train_els_graph_df, _ = EL_sparsify(train_graph_df, edge_raw_features)
+        # TODO: remove test node test
+        train_els_graph_df = train_els_graph_df[~train_els_graph_df['u'].isin(new_test_node_set)]
+        train_els_graph_df = train_els_graph_df[~train_els_graph_df['i'].isin(new_test_node_set)]
+    
+    # added train edge ids - only for train edge set
+    # added train node interact times - only for train node set
+    if sparsify:
+        train_src_node_ids = train_els_graph_df.u.values.astype(np.longlong)
+        train_dst_node_ids = train_els_graph_df.i.values.astype(np.longlong)
+        train_labels = train_els_graph_df.label.values
+        train_node_interact_times = train_els_graph_df.ts.values.astype(np.float64)
+        train_edge_ids = train_els_graph_df.idx.values.astype(np.longlong)
+    else:
+        train_src_node_ids = graph_df.u.values.astype(np.longlong)
+        train_dst_node_ids = graph_df.i.values.astype(np.longlong)
+        train_labels = graph_df.label.values
+        train_node_interact_times = graph_df.ts.values.astype(np.float64)
+        train_edge_ids = graph_df.idx.values.astype(np.longlong)
+    if sparsify:
+        train_node_set = set(train_src_node_ids) | set(train_dst_node_ids)
+        
+        assert len(train_node_set & new_test_node_set) == 0, f'Data overlap {len(train_node_set & new_test_node_set)}'
 
     # mask for each source and destination to denote whether they are new test nodes
     new_test_source_mask = graph_df.u.map(lambda x: x in new_test_node_set).values
     new_test_destination_mask = graph_df.i.map(lambda x: x in new_test_node_set).values
+    
+    # TODO: make similar mask for sparsified df
 
     # mask, which is true for edges with both destination and source not being new test nodes (because we want to remove all edges involving any new test node)
     observed_edges_mask = np.logical_and(~new_test_source_mask, ~new_test_destination_mask)
 
     # for train data, we keep edges happening before the validation time which do not involve any new node, used for inductiveness
     train_mask = np.logical_and(node_interact_times <= val_time, observed_edges_mask)
+    print('before: ', train_edge_ids.shape, train_node_interact_times.shape, train_mask.shape)
+    if not sparsify:
+        sparse_train_mask = train_mask
+    else:
+        # train_mask = np.logical_and(node_interact_times <= val_time, observed_edges_mask)
+        sparse_train_mask = train_mask[:train_edge_ids.shape[0]]
+        print('after: ', train_edge_ids.shape, train_node_interact_times.shape, sparse_train_mask.shape)
+        
+    # print('before: ', train_edge_ids.shape, train_node_interact_times.shape, train_mask.shape)
 
-    train_data = Data(src_node_ids=src_node_ids[train_mask], dst_node_ids=dst_node_ids[train_mask],
-                      node_interact_times=node_interact_times[train_mask],
-                      edge_ids=edge_ids[train_mask], labels=labels[train_mask])
+    # train_data = Data(src_node_ids=src_node_ids[train_mask], dst_node_ids=dst_node_ids[train_mask],
+    #                   node_interact_times=node_interact_times[train_mask],
+    #                   edge_ids=edge_ids[train_mask], labels=labels[train_mask])
+    
+    # changed Train data to have ELSS
+    train_data = Data(src_node_ids=train_src_node_ids[sparse_train_mask],
+                      dst_node_ids=train_dst_node_ids[sparse_train_mask],
+                      node_interact_times=train_node_interact_times[sparse_train_mask],
+                      edge_ids=train_edge_ids[sparse_train_mask],
+                      labels=train_labels[sparse_train_mask])
 
     # define the new nodes sets for testing inductiveness of the model
     train_node_set = set(train_data.src_node_ids).union(train_data.dst_node_ids)
-    assert len(train_node_set & new_test_node_set) == 0
+    assert len(train_node_set & new_test_node_set) == 0, f'Data overlap {len(train_node_set & new_test_node_set)}'
     # new nodes that are not in the training set
     new_node_set = node_set - train_node_set
 
@@ -192,7 +243,7 @@ def get_node_classification_data(dataset_name: str, val_ratio: float, test_ratio
     :return: node_raw_features, edge_raw_features, (np.ndarray),
             full_data, train_data, val_data, test_data, (Data object)
     """
-    which_folder = 'sparsified_data'if sparsify else 'processed_data'
+    which_folder = 'processed_data' # 'sparsified_data'if sparsify else 'processed_data'
     # Load data and train val test split
     graph_df = pd.read_csv('{}/{}/{}/ml_{}.csv'.format(scratch_location, which_folder, dataset_name, dataset_name))
     edge_raw_features = np.load('{}/{}/{}/ml_{}.npy'.format(scratch_location, which_folder, dataset_name, dataset_name))
@@ -222,17 +273,50 @@ def get_node_classification_data(dataset_name: str, val_ratio: float, test_ratio
 
     # The setting of seed follows previous works
     random.seed(2020)
+    
+    # train graph df will have ts < val_time
+    if sparsify:
+        train_graph_df = graph_df[graph_df['ts'] < val_time]
+        train_els_graph_df, _ = EL_sparsify(train_graph_df, edge_raw_features)
+        # # TODO: remove test node test
+        # train_els_graph_df = train_els_graph_df[~train_els_graph_df['u'].isin(new_test_node_set)]
+        # train_els_graph_df = train_els_graph_df[~train_els_graph_df['i'].isin(new_test_node_set)]
+    
+    # added train edge ids - only for train edge set
+    # added train node interact times - only for train node set
+    if sparsify:
+        train_src_node_ids = train_els_graph_df.u.values.astype(np.longlong)
+        train_dst_node_ids = train_els_graph_df.i.values.astype(np.longlong)
+        train_labels = train_els_graph_df.label.values
+        train_node_interact_times = train_els_graph_df.ts.values.astype(np.float64)
+        train_edge_ids = train_els_graph_df.idx.values.astype(np.longlong)
+    else:
+        train_src_node_ids = graph_df.u.values.astype(np.longlong)
+        train_dst_node_ids = graph_df.i.values.astype(np.longlong)
+        train_labels = graph_df.label.values
+        train_node_interact_times = graph_df.ts.values.astype(np.float64)
+        train_edge_ids = graph_df.idx.values.astype(np.longlong)
+
+    # train_node_set = set(train_src_node_ids) | set(train_dst_node_ids)
+    
+    # assert len(train_node_set & new_test_node_set) == 0, f'Data overlap {len(train_node_set & new_test_node_set)}'
+
 
     train_mask = node_interact_times <= val_time
     val_mask = np.logical_and(node_interact_times <= test_time, node_interact_times > val_time)
     test_mask = node_interact_times > test_time
 
     full_data = Data(src_node_ids=src_node_ids, dst_node_ids=dst_node_ids, node_interact_times=node_interact_times, edge_ids=edge_ids, labels=labels)
-    train_data = Data(src_node_ids=src_node_ids[train_mask], dst_node_ids=dst_node_ids[train_mask],
-                      node_interact_times=node_interact_times[train_mask],
-                      edge_ids=edge_ids[train_mask], labels=labels[train_mask])
+    
+    train_data = Data(src_node_ids=train_src_node_ids,
+                      dst_node_ids=train_dst_node_ids,
+                      node_interact_times=train_node_interact_times,
+                      edge_ids=train_edge_ids,
+                      labels=train_labels)
+    
     val_data = Data(src_node_ids=src_node_ids[val_mask], dst_node_ids=dst_node_ids[val_mask],
                     node_interact_times=node_interact_times[val_mask], edge_ids=edge_ids[val_mask], labels=labels[val_mask])
+    
     test_data = Data(src_node_ids=src_node_ids[test_mask], dst_node_ids=dst_node_ids[test_mask],
                      node_interact_times=node_interact_times[test_mask], edge_ids=edge_ids[test_mask], labels=labels[test_mask])
 

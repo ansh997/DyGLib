@@ -6,7 +6,7 @@ from pathlib import Path
 import argparse
 from pandas.testing import assert_frame_equal
 from distutils.dir_util import copy_tree
-from preprocess_data import check_data
+from .preprocess_data import check_data
 
 
 # scratch_location = r'/scratch/hmnshpl'
@@ -28,10 +28,18 @@ def EL_sparsify(graph_df, edge_raw_features):
     # Group by 'u' and 'i' and capture the first and last interactions
     first_interactions = tmp_graph_df.groupby(['u', 'i']).first().reset_index()
     last_interactions = tmp_graph_df.groupby(['u', 'i']).last().reset_index()
+    # TODO: add random interactions --> 10% - 30%
     
-    EL_graph_df = pd.concat([first_interactions, last_interactions]).drop_duplicates().reset_index(drop=True).drop(['Unnamed: 0'], axis=1)
+    EL_graph_df = (pd.concat([first_interactions,
+                    last_interactions])
+                    .drop_duplicates()
+                    .reset_index(drop=True)
+                    .drop(['Unnamed: 0'], axis=1)
+                    .sort_values(['idx'], ascending=True) # this fixed it.
+                    )
     
-    EL_edge_raw_features = edge_raw_features # edge_raw_features[EL_graph_df['idx'].values]
+    EL_edge_raw_features = edge_raw_features # edge_raw_features[sorted(EL_graph_df['idx'].values)]
+    # EL_graph_df['idx'] = [i for i in range(1, len(EL_graph_df['idx'])+1)]
     # assert EL_graph_df.shape[0] == EL_edge_raw_features.shape[0]
     
     return EL_graph_df, EL_edge_raw_features

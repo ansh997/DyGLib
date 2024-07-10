@@ -445,8 +445,8 @@ class MemoryUpdater(nn.Module):
         if len(unique_node_ids) <= 0:
             return
         # TODO: ================================= Undo below change ===============================================================
-        # assert (self.memory_bank.get_node_last_updated_times(unique_node_ids) <=
-        #         torch.from_numpy(unique_node_timestamps).float().to(unique_node_messages.device)).all().item(), "Trying to update memory to time in the past!"
+        assert (self.memory_bank.get_node_last_updated_times(unique_node_ids) <=
+                torch.from_numpy(unique_node_timestamps).float().to(unique_node_messages.device)).all().item(), "Trying to update memory to time in the past!"
 
         # Tensor, shape (num_unique_node_ids, memory_dim)
         node_memories = self.memory_bank.get_memories(node_ids=unique_node_ids)
@@ -472,8 +472,8 @@ class MemoryUpdater(nn.Module):
         if len(unique_node_ids) <= 0:
             return self.memory_bank.node_memories.data.clone(), self.memory_bank.node_last_updated_times.data.clone()
         # TODO: ================================= Undo below change ===============================================================
-        # assert (self.memory_bank.get_node_last_updated_times(unique_node_ids=unique_node_ids) <=
-        #         torch.from_numpy(unique_node_timestamps).float().to(unique_node_messages.device)).all().item(), "Trying to update memory to time in the past!"
+        assert (self.memory_bank.get_node_last_updated_times(unique_node_ids=unique_node_ids) <=
+                torch.from_numpy(unique_node_timestamps).float().to(unique_node_messages.device)).all().item(), "Trying to update memory to time in the past!"
 
         # Tensor, shape (num_nodes, memory_dim)
         updated_node_memories = self.memory_bank.node_memories.data.clone()
@@ -676,6 +676,7 @@ def compute_src_dst_node_time_shifts(src_node_ids: np.ndarray, dst_node_ids: np.
     dst_node_last_timestamps = dict()
     src_node_all_time_shifts = []
     dst_node_all_time_shifts = []
+    print(f'{len(src_node_ids)=}, {len(node_interact_times)=}')
     for k in range(len(src_node_ids)):
         src_node_id = src_node_ids[k]
         dst_node_id = dst_node_ids[k]
