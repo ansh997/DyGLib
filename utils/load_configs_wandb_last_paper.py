@@ -46,14 +46,9 @@ def get_link_prediction_args(is_evaluation: bool = False):
     parser.add_argument('--test_ratio', type=float, default=0.15, help='ratio of test set')
     parser.add_argument('--num_runs', type=int, default=5, help='number of runs')
     parser.add_argument('--test_interval_epochs', type=int, default=10, help='how many epochs to perform testing once')
-    parser.add_argument('--mrr', type=bool, default=False, help='whether to change metric to mrr')
     parser.add_argument('--negative_sample_strategy', type=str, default='random', choices=['random', 'historical', 'inductive'],
                         help='strategy for the negative edge sampling')
     parser.add_argument('--load_best_configs', action='store_true', default=False, help='whether to load the best configurations')
-    parser.add_argument('--sparsify', type=bool, default=False, help='sparsify the graph or not')
-    parser.add_argument('--strategy', type=str, default='random', choices=['random',], help='strategy for the sparsification')
-    parser.add_argument('--sampling_upto', type=float, default=0.7, help='sampling for the sparsification')
-    
 
     try:
         args = parser.parse_args()
@@ -241,6 +236,72 @@ def load_link_prediction_best_configs(args: argparse.Namespace):
         raise ValueError(f"Wrong value for model_name {args.model_name}!")
 
 
+def get_link_prediction_args_cvr_based(is_evaluation: bool = False):
+    """
+    get the args for the link prediction task based on the coverage based node classification method
+    :param is_evaluation: boolean, whether in the evaluation process
+    :return:
+    """
+    # arguments
+    parser = argparse.ArgumentParser('Interface for the link prediction task')
+    parser.add_argument('--dataset_name', type=str, help='dataset to be used', default='wikipedia',
+                        choices=['wikipedia', 'reddit', 'mooc', 'lastfm', 'myket', 'enron', 'SocialEvo', 'uci', 'Flights', 'CanParl', 'USLegis', 'UNtrade', 'UNvote', 'Contacts'])
+    parser.add_argument('--batch_size', type=int, default=200, help='batch size')
+    parser.add_argument('--model_name', type=str, default='DyGFormer', help='name of the model, note that EdgeBank is only applicable for evaluation',
+                        choices=['JODIE', 'DyRep', 'TGAT', 'TGN', 'CAWN', 'EdgeBank', 'TCL', 'GraphMixer', 'DyGFormer'])
+    parser.add_argument('--gpu', type=int, default=0, help='number of gpu to use')
+    parser.add_argument('--num_neighbors', type=int, default=20, help='number of neighbors to sample for each node')
+    parser.add_argument('--sample_neighbor_strategy', type=str, default='recent', choices=['uniform', 'recent', 'time_interval_aware'], help='how to sample historical neighbors')
+    parser.add_argument('--time_scaling_factor', default=1e-6, type=float, help='the hyperparameter that controls the sampling preference with time interval, '
+                        'a large time_scaling_factor tends to sample more on recent links, 0.0 corresponds to uniform sampling, '
+                        'it works when sample_neighbor_strategy == time_interval_aware')
+    parser.add_argument('--num_walk_heads', type=int, default=8, help='number of heads used for the attention in walk encoder')
+    parser.add_argument('--num_heads', type=int, default=2, help='number of heads used in attention layer')
+    parser.add_argument('--num_layers', type=int, default=2, help='number of model layers')
+    parser.add_argument('--walk_length', type=int, default=1, help='length of each random walk')
+    parser.add_argument('--time_gap', type=int, default=2000, help='time gap for neighbors to compute node features')
+    parser.add_argument('--time_feat_dim', type=int, default=100, help='dimension of the time embedding')
+    parser.add_argument('--position_feat_dim', type=int, default=172, help='dimension of the position embedding')
+    parser.add_argument('--edge_bank_memory_mode', type=str, default='unlimited_memory', help='how memory of EdgeBank works',
+                        choices=['unlimited_memory', 'time_window_memory', 'repeat_threshold_memory'])
+    parser.add_argument('--time_window_mode', type=str, default='fixed_proportion', help='how to select the time window size for time window memory',
+                        choices=['fixed_proportion', 'repeat_interval'])
+    parser.add_argument('--patch_size', type=int, default=1, help='patch size')
+    parser.add_argument('--channel_embedding_dim', type=int, default=50, help='dimension of each channel embedding')
+    parser.add_argument('--max_input_sequence_length', type=int, default=32, help='maximal length of the input sequence of each node')
+    parser.add_argument('--learning_rate', type=float, default=0.0001, help='learning rate')
+    parser.add_argument('--dropout', type=float, default=0.1, help='dropout rate')
+    parser.add_argument('--num_epochs', type=int, default=100, help='number of epochs')
+    parser.add_argument('--optimizer', type=str, default='Adam', choices=['SGD', 'Adam', 'RMSprop'], help='name of optimizer')
+    parser.add_argument('--weight_decay', type=float, default=0.0, help='weight decay')
+    parser.add_argument('--patience', type=int, default=20, help='patience for early stopping')
+    parser.add_argument('--val_ratio', type=float, default=0.15, help='ratio of validation set')
+    parser.add_argument('--test_ratio', type=float, default=0.15, help='ratio of test set')
+    parser.add_argument('--num_runs', type=int, default=5, help='number of runs')
+    parser.add_argument('--test_interval_epochs', type=int, default=10, help='how many epochs to perform testing once')
+    parser.add_argument('--negative_sample_strategy', type=str, default='random', choices=['random', 'historical', 'inductive'],
+                        help='strategy for the negative edge sampling')
+    parser.add_argument('--load_best_configs', action='store_true', default=False, help='whether to load the best configurations')
+    parser.add_argument('--coverage', type=float, default=0.8, help='Coverage') # hyperparameter coverage for Selective loss L_(f,g)
+    parser.add_argument('--lambda_val', type=int, default=32, help='Lambda') # hyperparameter lambda for Selective loss L_(f,g)
+    parser.add_argument('--alphaloss', type=float, default=0.5, help='Alpha') # hyperparameter alpha for overall loss function
+    parser.add_argument('--gamma', type=float, default=None, help='gamma for the focal loss')
+
+    try:
+        args = parser.parse_args()
+        args.device = f'cuda:{args.gpu}' if torch.cuda.is_available() and args.gpu >= 0 else 'cpu'
+    except:
+        parser.print_help()
+        sys.exit()
+
+    if args.model_name == 'EdgeBank':
+        assert is_evaluation, 'EdgeBank is only applicable for evaluation!'
+
+    if args.load_best_configs:
+        load_link_prediction_best_configs(args=args)
+
+    return args
+
 def get_node_classification_args():
     """
     get the args for the node classification task
@@ -277,12 +338,135 @@ def get_node_classification_args():
     parser.add_argument('--val_ratio', type=float, default=0.15, help='ratio of validation set')
     parser.add_argument('--test_ratio', type=float, default=0.15, help='ratio of test set')
     parser.add_argument('--num_runs', type=int, default=5, help='number of runs')
-    parser.add_argument('--mrr', type=bool, default=False, help='whether to change metric to mrr')
     parser.add_argument('--test_interval_epochs', type=int, default=10, help='how many epochs to perform testing once')
     parser.add_argument('--load_best_configs', action='store_true', default=False, help='whether to load the best configurations')
-    parser.add_argument('--sparsify', type=bool, default=False, help='sparsify the graph or not')
-    parser.add_argument('--strategy', type=str, default='random', choices=['random',], help='strategy for the sparsification')
-    parser.add_argument('--sampling_upto', type=float, default=0.7, help='sampling for the sparsification')
+    parser.add_argument('--coverage', type=float, default=0.8, help='Coverage') # hyperparameter coverage for Selective loss L_(f,g)
+    parser.add_argument('--lambda_val', type=int, default=32, help='Lambda') # hyperparameter lambda for Selective loss L_(f,g)
+    parser.add_argument('--alphaloss', type=float, default=0.5, help='Alpha') # hyperparameter alpha for overall loss function
+    parser.add_argument('--gamma', type=float, default=None, help='gamma for the focal loss')
+
+    try:
+        args = parser.parse_args()
+        args.device = f'cuda:{args.gpu}' if torch.cuda.is_available() and args.gpu >= 0 else 'cpu'
+    except:
+        parser.print_help()
+        sys.exit()
+
+    assert args.dataset_name in ['wikipedia', 'reddit'], f'Wrong value for dataset_name {args.dataset_name}!'
+    if args.load_best_configs:
+        load_node_classification_best_configs(args=args)
+
+    return args
+
+def get_node_classification_args_wandb():
+    """
+    get the args for the node classification task
+    :return:
+    """
+    # arguments
+    parser = argparse.ArgumentParser('Interface for the node classification task')
+    parser.add_argument('--dataset_name', type=str, help='dataset to be used', default='wikipedia', choices=['wikipedia', 'reddit'])
+    parser.add_argument('--batch_size', type=int, default=200, help='batch size')
+    parser.add_argument('--model_name', type=str, default='DyGFormer', help='name of the model',
+                        choices=['JODIE', 'DyRep', 'TGAT', 'TGN', 'CAWN', 'TCL', 'GraphMixer', 'DyGFormer'])
+    parser.add_argument('--gpu', type=int, default=0, help='number of gpu to use')
+    parser.add_argument('--num_neighbors', type=int, default=20, help='number of neighbors to sample for each node')
+    parser.add_argument('--sample_neighbor_strategy', type=str, default='recent', choices=['uniform', 'recent', 'time_interval_aware'], help='how to sample historical neighbors')
+    parser.add_argument('--time_scaling_factor', default=1e-6, type=float, help='the hyperparameter that controls the sampling preference with time interval, '
+                        'a large time_scaling_factor tends to sample more on recent links, 0.0 corresponds to uniform sampling, '
+                        'it works when sample_neighbor_strategy == time_interval_aware')
+    parser.add_argument('--num_walk_heads', type=int, default=8, help='number of heads used for the attention in walk encoder')
+    parser.add_argument('--num_heads', type=int, default=2, help='number of heads used in attention layer')
+    parser.add_argument('--num_layers', type=int, default=2, help='number of model layers')
+    parser.add_argument('--walk_length', type=int, default=1, help='length of each random walk')
+    parser.add_argument('--time_gap', type=int, default=2000, help='time gap for neighbors to compute node features')
+    parser.add_argument('--time_feat_dim', type=int, default=100, help='dimension of the time embedding')
+    parser.add_argument('--position_feat_dim', type=int, default=172, help='dimension of the position embedding')
+    parser.add_argument('--patch_size', type=int, default=1, help='patch size')
+    parser.add_argument('--channel_embedding_dim', type=int, default=50, help='dimension of each channel embedding')
+    parser.add_argument('--max_input_sequence_length', type=int, default=32, help='maximal length of the input sequence of each node')
+    parser.add_argument('--learning_rate', type=float, default=0.0001, help='learning rate')
+    parser.add_argument('--dropout', type=float, default=0.1, help='dropout rate')
+    parser.add_argument('--num_epochs', type=int, default=100, help='number of epochs')
+    parser.add_argument('--optimizer', type=str, default='Adam', choices=['SGD', 'Adam', 'RMSprop'], help='name of optimizer')
+    parser.add_argument('--weight_decay', type=float, default=0.0, help='weight decay')
+    parser.add_argument('--patience', type=int, default=10, help='patience for early stopping')
+    parser.add_argument('--val_ratio', type=float, default=0.15, help='ratio of validation set')
+    parser.add_argument('--test_ratio', type=float, default=0.15, help='ratio of test set')
+    parser.add_argument('--num_runs', type=int, default=5, help='number of runs')
+    parser.add_argument('--test_interval_epochs', type=int, default=10, help='how many epochs to perform testing once')
+    parser.add_argument('--load_best_configs', action='store_true', default=False, help='whether to load the best configurations')
+    parser.add_argument('--coverage', type=float, default=0.8, help='Coverage') # hyperparameter coverage for Selective loss L_(f,g)
+    parser.add_argument('--lambda_val', type=int, default=32, help='Lambda') # hyperparameter lambda for Selective loss L_(f,g)
+    parser.add_argument('--alphaloss', type=float, default=0.5, help='Alpha') # hyperparameter alpha for overall loss function
+    parser.add_argument('--gamma', type=float, default=None, help='gamma for the focal loss')
+    parser.add_argument('--lr_min', type=float, default=0.00, help='min learning rate')
+    parser.add_argument('--lr_max', type=float, default=1.00, help='max learning rate')
+    parser.add_argument('--wnd_runs', type=int, default=50, help='Number of runs for this script')
+
+    try:
+        args = parser.parse_args()
+        args.device = f'cuda:{args.gpu}' if torch.cuda.is_available() and args.gpu >= 0 else 'cpu'
+    except:
+        parser.print_help()
+        sys.exit()
+
+    assert args.dataset_name in ['wikipedia', 'reddit'], f'Wrong value for dataset_name {args.dataset_name}!'
+    if args.load_best_configs:
+        load_node_classification_best_configs(args=args)
+
+    return args
+
+
+def cls_specific_get_node_classification_args_cvr_based_wandb():
+    """
+    get the args for the node classification task
+    :return:
+    """
+    # arguments
+    parser = argparse.ArgumentParser('Interface for the node classification task')
+    parser.add_argument('--dataset_name', type=str, help='dataset to be used', default='wikipedia', choices=['wikipedia', 'reddit'])
+    parser.add_argument('--batch_size', type=int, default=200, help='batch size')
+    parser.add_argument('--model_name', type=str, default='DyGFormer', help='name of the model',
+                        choices=['JODIE', 'DyRep', 'TGAT', 'TGN', 'CAWN', 'TCL', 'GraphMixer', 'DyGFormer'])
+    parser.add_argument('--gpu', type=int, default=0, help='number of gpu to use')
+    parser.add_argument('--num_neighbors', type=int, default=20, help='number of neighbors to sample for each node')
+    parser.add_argument('--sample_neighbor_strategy', type=str, default='recent', choices=['uniform', 'recent', 'time_interval_aware'], help='how to sample historical neighbors')
+    parser.add_argument('--time_scaling_factor', default=1e-6, type=float, help='the hyperparameter that controls the sampling preference with time interval, '
+                        'a large time_scaling_factor tends to sample more on recent links, 0.0 corresponds to uniform sampling, '
+                        'it works when sample_neighbor_strategy == time_interval_aware')
+    parser.add_argument('--num_walk_heads', type=int, default=8, help='number of heads used for the attention in walk encoder')
+    parser.add_argument('--num_heads', type=int, default=2, help='number of heads used in attention layer')
+    parser.add_argument('--num_layers', type=int, default=2, help='number of model layers')
+    parser.add_argument('--walk_length', type=int, default=1, help='length of each random walk')
+    parser.add_argument('--time_gap', type=int, default=2000, help='time gap for neighbors to compute node features')
+    parser.add_argument('--time_feat_dim', type=int, default=100, help='dimension of the time embedding')
+    parser.add_argument('--position_feat_dim', type=int, default=172, help='dimension of the position embedding')
+    parser.add_argument('--patch_size', type=int, default=1, help='patch size')
+    parser.add_argument('--channel_embedding_dim', type=int, default=50, help='dimension of each channel embedding')
+    parser.add_argument('--max_input_sequence_length', type=int, default=32, help='maximal length of the input sequence of each node')
+    parser.add_argument('--learning_rate', type=float, default=0.0001, help='learning rate')
+    parser.add_argument('--dropout', type=float, default=0.1, help='dropout rate')
+    parser.add_argument('--num_epochs', type=int, default=100, help='number of epochs')
+    parser.add_argument('--optimizer', type=str, default='Adam', choices=['SGD', 'Adam', 'RMSprop'], help='name of optimizer')
+    parser.add_argument('--weight_decay', type=float, default=0.0, help='weight decay')
+    parser.add_argument('--patience', type=int, default=10, help='patience for early stopping')
+    parser.add_argument('--val_ratio', type=float, default=0.15, help='ratio of validation set')
+    parser.add_argument('--test_ratio', type=float, default=0.15, help='ratio of test set')
+    parser.add_argument('--num_runs', type=int, default=5, help='number of runs')
+    parser.add_argument('--test_interval_epochs', type=int, default=10, help='how many epochs to perform testing once')
+    parser.add_argument('--load_best_configs', action='store_true', default=False, help='whether to load the best configurations')
+    parser.add_argument('--selective_loss_type', type=str, default='SelectiveLoss_Cls_Agnostic', choices=['SelectiveLoss_Cls_Specific', 'SelectiveLoss_Cls_Agnostic'], help='type of selective loss')
+    parser.add_argument('--lambda_val', type=int, default=32, help='Lambda') # hyperparameter lambda for Selective loss L_(f,g)
+    parser.add_argument('--alphaloss', type=float, default=0.5, help='Alpha') # hyperparameter alpha for overall loss function
+    parser.add_argument('--gamma', type=float, default=None, help='gamma for the focal loss')
+    parser.add_argument('--minority_coverage', type=float, default=1.0, help='Coverage for minority class') # hyperparameter coverage for SelectiveLoss_Cls_Specific
+    parser.add_argument('--majority_coverage', type=float, default=0.8, help='Coverage for majority class') # hyperparameter coverage for SelectiveLoss_Cls_Specific
+    parser.add_argument('--minority_lambda_val', type=int, default=32, help='Lambda for minority class') # hyperparameter lambda
+    parser.add_argument('--majority_lambda_val', type=int, default=32, help='Lambda for majority class') # hyperparameter lambda 
+    parser.add_argument('--lr_min', type=float, default=0.00, help='min learning rate')
+    parser.add_argument('--lr_max', type=float, default=1.00, help='max learning rate')
+    parser.add_argument('--wnd_runs', type=int, default=50, help='Number of runs for this script')
 
     try:
         args = parser.parse_args()

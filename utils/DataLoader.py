@@ -70,7 +70,9 @@ class Data:
         self.num_unique_nodes = len(self.unique_node_ids)
 
 
-def get_link_prediction_data(dataset_name: str, val_ratio: float, test_ratio: float, sparsify: bool = False):
+def get_link_prediction_data(dataset_name: str, val_ratio: float,
+                             test_ratio: float, sparsify: bool = False,
+                             strategy:str='random', sampling_upto=0.7):
     """
     generate data for link prediction task (inductive & transductive settings)
     :param dataset_name: str, dataset name
@@ -131,7 +133,8 @@ def get_link_prediction_data(dataset_name: str, val_ratio: float, test_ratio: fl
     # train graph df will have ts < val_time
     if sparsify:
         train_graph_df = graph_df[graph_df['ts'] < val_time]
-        train_els_graph_df, _ = EL_sparsify(train_graph_df, edge_raw_features)
+        train_els_graph_df, _ = EL_sparsify(train_graph_df, edge_raw_features,
+                                            strategy=strategy, upto=sampling_upto)
         # TODO: remove test node test
         train_els_graph_df = train_els_graph_df[~train_els_graph_df['u'].isin(new_test_node_set)]
         train_els_graph_df = train_els_graph_df[~train_els_graph_df['i'].isin(new_test_node_set)]
@@ -234,7 +237,9 @@ def get_link_prediction_data(dataset_name: str, val_ratio: float, test_ratio: fl
     return node_raw_features, edge_raw_features, full_data, train_data, val_data, test_data, new_node_val_data, new_node_test_data
 
 
-def get_node_classification_data(dataset_name: str, val_ratio: float, test_ratio: float, sparsify: bool = False):
+def get_node_classification_data(dataset_name: str, val_ratio: float,
+                                test_ratio: float, sparsify: bool = False,
+                                strategy:str='random', sampling_upto=0.7):
     """
     generate data for node classification task
     :param dataset_name: str, dataset name
@@ -277,7 +282,8 @@ def get_node_classification_data(dataset_name: str, val_ratio: float, test_ratio
     # train graph df will have ts < val_time
     if sparsify:
         train_graph_df = graph_df[graph_df['ts'] < val_time]
-        train_els_graph_df, _ = EL_sparsify(train_graph_df, edge_raw_features)
+        train_els_graph_df, _ = EL_sparsify(train_graph_df, edge_raw_features,
+                                            strategy=strategy, upto=sampling_upto)
         # # TODO: remove test node test
         # train_els_graph_df = train_els_graph_df[~train_els_graph_df['u'].isin(new_test_node_set)]
         # train_els_graph_df = train_els_graph_df[~train_els_graph_df['i'].isin(new_test_node_set)]

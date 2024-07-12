@@ -116,6 +116,8 @@ processed_data/*/*
 
 # Pickle files
 *.pkl
+# json file
+*.json
 
 # folders to ignore
 saved_models/

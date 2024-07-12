@@ -34,7 +34,13 @@ if __name__ == "__main__":
 
     # get data for training, validation and testing
     node_raw_features, edge_raw_features, full_data, train_data, val_data, test_data = \
-        get_node_classification_data(dataset_name=args.dataset_name, val_ratio=args.val_ratio, test_ratio=args.test_ratio, sparsify=args.sparsify)
+        get_node_classification_data(dataset_name=args.dataset_name,
+                                    val_ratio=args.val_ratio,
+                                    test_ratio=args.test_ratio,
+                                    sparsify=args.sparsify,
+                                    strategy=args.strategy,
+                                    sampling_upto=args.sampling_upto
+                                    )
 
     # initialize validation and test neighbor sampler to retrieve temporal graph
     full_neighbor_sampler = get_neighbor_sampler(data=full_data, sample_neighbor_strategy=args.sample_neighbor_strategy,

@@ -12,7 +12,7 @@ from .preprocess_data import check_data
 # scratch_location = r'/scratch/hmnshpl'
 scratch_location = rf'/scratch/{getpass.getuser()}'
 
-def EL_sparsify(graph_df, edge_raw_features):
+def EL_sparsify(graph_df, edge_raw_features, strategy='random', upto=0.7):
     """_summary_
 
     Args:
@@ -22,15 +22,32 @@ def EL_sparsify(graph_df, edge_raw_features):
     Returns:
         _type_: sparsified graph with edge features
     """
+    strategy = strategy.lower() # making it case insensitive
     tmp_graph_df = graph_df.copy(deep=True)
     tmp_graph_df = tmp_graph_df.sort_values(by=['u', 'i', 'ts'])
     
+    # Exclude the first and last rows based on 'u' and 'i'
+    grouped = tmp_graph_df.groupby(['u', 'i'])
+    modified_df = grouped.apply(lambda x: x.iloc[1:-1]).reset_index(drop=True)
+    
+    sample_size = int(len(modified_df) * upto)
+    
     # Group by 'u' and 'i' and capture the first and last interactions
-    first_interactions = tmp_graph_df.groupby(['u', 'i']).first().reset_index()
-    last_interactions = tmp_graph_df.groupby(['u', 'i']).last().reset_index()
+    first_interactions = grouped.first().reset_index()
+    last_interactions = grouped.last().reset_index()
+    
     # TODO: add random interactions --> 10% - 30%
+    # we can do different selection strategy - right now random only
+    # should I use match cases or if else --> going with match
+    match strategy:
+        case 'random':
+            # Randomly sample rows without replacement
+            sampled_df = modified_df.sample(n=sample_size, random_state=42)
+        case _:
+            raise ValueError(f'Unknown strategy {strategy}')
     
     EL_graph_df = (pd.concat([first_interactions,
+                    sampled_df,
                     last_interactions])
                     .drop_duplicates()
                     .reset_index(drop=True)
