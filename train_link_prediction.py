@@ -9,6 +9,7 @@ import shutil
 import json
 import torch
 import torch.nn as nn
+import getpass
 
 from models.TGAT import TGAT
 from models.MemoryModel import MemoryModel, compute_src_dst_node_time_shifts
@@ -139,7 +140,8 @@ if __name__ == "__main__":
 
         model = convert_to_gpu(model, device=args.device)
 
-        save_model_folder = f"./saved_models/{args.model_name}/{args.dataset_name}/{args.save_model_name}/"
+        # chaged saved_models to scratch
+        save_model_folder = f"/scratch/{getpass.getuser()}/saved_models/{args.model_name}/{args.dataset_name}/{args.save_model_name}/"
         shutil.rmtree(save_model_folder, ignore_errors=True)
         os.makedirs(save_model_folder, exist_ok=True)
 
@@ -480,7 +482,11 @@ if __name__ == "__main__":
             }
         result_json = json.dumps(result_json, indent=4)
 
-        save_result_folder = f"./saved_results/{args.model_name}/{args.dataset_name}"
+        if args.sparsify:
+            sampling_upto = args.sampling_upto
+        else:
+            sampling_upto = 1.0
+        save_result_folder = f"./saved_results/{args.model_name}/{args.dataset_name}/{args.strategy}/{sampling_upto}"
         os.makedirs(save_result_folder, exist_ok=True)
         save_result_path = os.path.join(save_result_folder, f"{args.save_model_name}.json")
 

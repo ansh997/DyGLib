@@ -3,7 +3,7 @@ import sys
 import torch
 
 
-def get_link_prediction_args(is_evaluation: bool = False):
+def get_link_prediction_args_wandb(is_evaluation: bool = False):
     """
     get the args for the link prediction task
     :param is_evaluation: boolean, whether in the evaluation process
@@ -51,9 +51,14 @@ def get_link_prediction_args(is_evaluation: bool = False):
                         help='strategy for the negative edge sampling')
     parser.add_argument('--load_best_configs', action='store_true', default=False, help='whether to load the best configurations')
     parser.add_argument('--sparsify', type=bool, default=False, help='sparsify the graph or not')
-    parser.add_argument('--strategy', type=str, default='random', choices=['random', 'tpr_remove', 'ts_tpr_remove'], help='strategy for the sparsification')
-    parser.add_argument('--sampling_upto', type=float, default=0.7, help='sampling for the sparsification')
-    
+    parser.add_argument('--strategy', type=str, default='random', choices=['random',], help='strategy for the sparsification')
+    parser.add_argument('--sampling_upto', type=float, default=0.7, help='sampling for the sparsification in random setting')
+    parser.add_argument('--lr_min', type=float, default=1e-5, help='min learning rate')
+    parser.add_argument('--lr_max', type=float, default=1e-3, help='max learning rate')
+    parser.add_argument('--wnd_runs', type=int, default=50, help='Number of runs for this script')
+    parser.add_argument('--min_sampling_upto', type=float, default=0.9, help='min sampling for the sparsification in random setting')
+    parser.add_argument('--max_sampling_upto', type=float, default=0.3, help='max sampling for the sparsification in random setting')
+    # for future add different strategies for sparsification
 
     try:
         args = parser.parse_args()
@@ -241,7 +246,7 @@ def load_link_prediction_best_configs(args: argparse.Namespace):
         raise ValueError(f"Wrong value for model_name {args.model_name}!")
 
 
-def get_node_classification_args():
+def get_node_classification_args_wandb():
     """
     get the args for the node classification task
     :return:
@@ -281,8 +286,14 @@ def get_node_classification_args():
     parser.add_argument('--test_interval_epochs', type=int, default=10, help='how many epochs to perform testing once')
     parser.add_argument('--load_best_configs', action='store_true', default=False, help='whether to load the best configurations')
     parser.add_argument('--sparsify', type=bool, default=False, help='sparsify the graph or not')
-    parser.add_argument('--strategy', type=str, default='random', choices=['random','tpr_remove', 'ts_tpr_remove'], help='strategy for the sparsification')
+    parser.add_argument('--strategy', type=str, default='random', choices=['random',], help='strategy for the sparsification')
     parser.add_argument('--sampling_upto', type=float, default=0.7, help='sampling for the sparsification')
+    parser.add_argument('--lr_min', type=float, default=1e-5, help='min learning rate')
+    parser.add_argument('--lr_max', type=float, default=1e-3, help='max learning rate')
+    parser.add_argument('--wnd_runs', type=int, default=50, help='Number of runs for this script')
+    parser.add_argument('--min_sampling_upto', type=float, default=0.9, help='min sampling for the sparsification in random setting')
+    parser.add_argument('--max_sampling_upto', type=float, default=0.3, help='max sampling for the sparsification in random setting')
+    # for future add different strategies for sparsification
 
     try:
         args = parser.parse_args()

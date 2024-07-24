@@ -1,33 +1,39 @@
 import os
+import sys
 import getpass
 import numpy as np
 import pandas as pd
 from pathlib import Path
 import argparse
-from pandas.testing import assert_frame_equal
+# from pandas.testing import assert_frame_equal
 from distutils.dir_util import copy_tree
 from .preprocess_data import check_data
+from .temporal_pr import temporal_pagerank_with_timestamps, calc_timestamp_pagerank
+import networkx as nx
 
+# Set the working directory to the project root
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..')) # this might cause issue
+sys.path.append(project_root)
 
 # scratch_location = r'/scratch/hmnshpl'
 scratch_location = rf'/scratch/{getpass.getuser()}'
 
-def EL_sparsify(graph_df, edge_raw_features, strategy='random', upto=0.7):
+def EL_sparsify(graph, edge_raw_features, strategy='random', upto=0.7):
     """_summary_
 
     Args:
-        graph_df (_type_): Original graph df
+        graph (_type_): Original graph df
         edge_raw_features (_type_): Original edge raw features
 
     Returns:
         _type_: sparsified graph with edge features
     """
     strategy = strategy.lower() # making it case insensitive
-    tmp_graph_df = graph_df.copy(deep=True)
-    tmp_graph_df = tmp_graph_df.sort_values(by=['u', 'i', 'ts'])
+    tmp_graph = graph.copy(deep=True)
+    tmp_graph = tmp_graph.sort_values(by=['u', 'i', 'ts'])
     
     # Exclude the first and last rows based on 'u' and 'i'
-    grouped = tmp_graph_df.groupby(['u', 'i'])
+    grouped = tmp_graph.groupby(['u', 'i'])
     modified_df = grouped.apply(lambda x: x.iloc[1:-1]).reset_index(drop=True)
     
     sample_size = int(len(modified_df) * upto)
@@ -38,33 +44,67 @@ def EL_sparsify(graph_df, edge_raw_features, strategy='random', upto=0.7):
     
     # TODO: add random interactions --> 10% - 30%
     # we can do different selection strategy - right now random only
-    # should I use match cases or if else --> going with match
     match strategy:
         case 'random':
             # Randomly sample rows without replacement
             sampled_df = modified_df.sample(n=sample_size, random_state=42)
+        case 'tpr_remove':
+            # calculate page rank of a dataset
+            # sample upto given percentage to be removed - since we are rejecting hence it should be different than selecting
+            # use top % nodes and remove (1-upto) nodes
+            graph = build_graph(tmp_graph)
+            page_rank_scores = temporal_page_rank(graph)
+            # Sort nodes by PageRank scores
+            sorted_nodes = sorted(page_rank_scores.items(), key=lambda item: item[1], reverse=True)
+            # Calculate the top upto% of nodes
+            top_x_percent_count = int(len(sorted_nodes) * (1-upto))
+            top_x_percent_nodes = sorted_nodes[:top_x_percent_count]
+            # Extract the node IDs from the top 30 percent nodes
+            top_x_percent_node_ids = {node for node, _ in top_x_percent_nodes}
+
+            # Remove rows from graph_df where either source or target node is in the top 30% nodes
+            sampled_df = modified_df[~modified_df['u'].isin(top_x_percent_node_ids) & ~modified_df['i'].isin(top_x_percent_node_ids)]
+        case 'ts_tpr_remove':
+            # calculate timestep level tpr
+            # ts_level_tpr = temporal_pagerank_with_timestamps(tmp_graph)
+            ts_level_tpr = calc_timestamp_pagerank(tmp_graph)
+            
+            ts_aggregated_scores= {}
+            for ts, scores in ts_level_tpr.items():
+                agg_scores=sum(scores.values())
+                ts_aggregated_scores[ts]=agg_scores
+            
+            # Sort timestamps by aggregated PageRank scores
+            sorted_timestamps = sorted(ts_aggregated_scores.items(),
+                                    key=lambda item: item[1], reverse=True)
+            
+            top_x_percent_count = int(len(sorted_timestamps) *(1-upto))
+            
+            top_x_percent_timestamps = [timestamp for timestamp, _ in sorted_timestamps[:top_x_percent_count]]
+            
+            sampled_df = modified_df[~modified_df['ts'].isin(top_x_percent_timestamps)]  # should we keep full training data - as we are already dropping duplicates                
         case _:
             raise ValueError(f'Unknown strategy {strategy}')
     
-    EL_graph_df = (pd.concat([first_interactions,
+    EL_graph = (pd.concat([first_interactions,
                     sampled_df,
                     last_interactions])
                     .drop_duplicates()
                     .reset_index(drop=True)
                     .drop(['Unnamed: 0'], axis=1)
                     .sort_values(['idx'], ascending=True) # this fixed it.
-                    )
+                )
     
-    EL_edge_raw_features = edge_raw_features # edge_raw_features[sorted(EL_graph_df['idx'].values)]
-    # EL_graph_df['idx'] = [i for i in range(1, len(EL_graph_df['idx'])+1)]
-    # assert EL_graph_df.shape[0] == EL_edge_raw_features.shape[0]
+    EL_edge_raw_features = edge_raw_features # edge_raw_features[sorted(EL_graph['idx'].values)]
+    # EL_graph['idx'] = [i for i in range(1, len(EL_graph['idx'])+1)]
+    # assert EL_graph.shape[0] == EL_edge_raw_features.shape[0]
     
-    return EL_graph_df, EL_edge_raw_features
+    return EL_graph, EL_edge_raw_features
 
 
 def EL_sparsify_data(dataset_name='wikipedia'):
     # Load data and train val test split
-    graph_df = pd.read_csv('{}/processed_data/{}/ml_{}.csv'.format(scratch_location, dataset_name, dataset_name))
+    graph = pd.read_csv('{}/processed_data/{}/ml_{}.csv'.format(scratch_location, dataset_name, dataset_name))
     edge_raw_features = np.load('{}/processed_data/{}/ml_{}.npy'.format(scratch_location, dataset_name, dataset_name))
     node_raw_features = np.load('{}/processed_data/{}/ml_{}_node.npy'.format(scratch_location, dataset_name, dataset_name))
     
@@ -72,14 +112,49 @@ def EL_sparsify_data(dataset_name='wikipedia'):
     OUT_FEAT = '{}/sparsified_data/{}/ml_{}.npy'.format(scratch_location, dataset_name, dataset_name)
     OUT_NODE_FEAT = '{}/sparsified_data/{}/ml_{}_node.npy'.format(scratch_location, dataset_name, dataset_name)
     
-    EL_graph_df, EL_edge_raw_features = EL_sparsify(graph_df, edge_raw_features)
+    EL_graph, EL_edge_raw_features = EL_sparsify(graph, edge_raw_features)
     
-    EL_graph_df.to_csv(OUT_DF)  # edge-list
+    EL_graph.to_csv(OUT_DF)  # edge-list
     np.save(OUT_FEAT, EL_edge_raw_features)  # edge features
     np.save(OUT_NODE_FEAT, node_raw_features)  # node features
     
     print(f'Sparsified {dataset_name}.')
     
+
+def temporal_page_rank(G, alpha=0.85, max_iter=100, tol=1e-6):
+    nodes = G.nodes()
+    num_nodes = G.number_of_nodes()
+    
+    # Initialize PageRank scores
+    pr = {node: 1.0 / num_nodes for node in nodes}
+    temp_pr = pr.copy()
+
+    for _ in range(max_iter):
+        change = 0
+        for node in nodes:
+            rank_sum = sum(pr[neighbor] / len(G[neighbor]) for neighbor in G.neighbors(node) if 'timestamp' in G[node][neighbor])
+            temp_pr[node] = (1 - alpha) / num_nodes + alpha * rank_sum
+        
+        # Calculate change for convergence check
+        change = sum(abs(temp_pr[node] - pr[node]) for node in nodes)
+        
+        if change < tol:
+            break
+        
+        pr = temp_pr.copy()
+
+    return pr
+
+
+def build_graph(graph):
+    # Extract nodes, edges, and timestamps
+    edges = graph[['u', 'i', 'ts']].values
+    
+    G = nx.Graph()
+    for edge in edges:
+        source, target, timestamp = edge
+        G.add_edge(source, target, timestamp=timestamp)
+    return G
 
 
 if __name__ == "__main__":
@@ -110,8 +185,3 @@ if __name__ == "__main__":
         if args.dataset_name not in ['myket']:
             check_data(args.dataset_name)
         print(f'{args.dataset_name} passes the checks successfully.')
-
-    
-    
-
-
