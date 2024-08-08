@@ -25,4 +25,7 @@ python train_link_prediction.py --dataset_name wikipedia --model_name TGN --patc
 
 # scratch pad
 # python train_link_prediction.py --dataset_name wikipedia --model_name TGN --patch_size 2 --max_input_sequence_length 64 --num_runs 5 --gpu 0 --sparsify True --strategy tpr_remove --sampling_upto 0.7
+# python train_link_prediction.py --dataset_name wikipedia --model_name TGN --patch_size 2 --max_input_sequence_length 64 --num_runs 5 --gpu 0 --sparsify True --strategy tpr_remove --sampling_upto 0.7
 # python train_link_prediction.py --dataset_name wikipedia --model_name TGN --patch_size 2 --max_input_sequence_length 64 --num_runs 5 --gpu 0 --sparsify True --strategy ts_tpr_remove --sampling_upto 0.7
+# python train_link_prediction.py --dataset_name wikipedia --model_name TGN --patch_size 2 --max_input_sequence_length 64 --num_runs 5 --gpu 0 --sparsify True --strategy ts_tpr_remove_inc --sampling_upto 0.7
+python train_link_prediction.py --dataset_name wikipedia --model_name TGN --patch_size 2 --max_input_sequence_length 64 --num_runs 5 --gpu 0 --sparsify True --strategy ts_tpr_remove_MSS --sampling_upto 0.9

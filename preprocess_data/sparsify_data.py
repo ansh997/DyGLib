@@ -8,7 +8,9 @@ import argparse
 # from pandas.testing import assert_frame_equal
 from distutils.dir_util import copy_tree
 from .preprocess_data import check_data
-from .temporal_pr import temporal_pagerank_with_timestamps, calc_timestamp_pagerank
+from .temporal_pr import temporal_pagerank_with_timestamps, calc_timestamp_pagerank,\
+    calc_inc_timestamp_pagerank, optimized_calc_inc_timestamp_pagerank,\
+    get_temporal_pagerank, mean_shift_removal, mean_shift_removal2, compute_mean_shifts_with_metrics
 import networkx as nx
 
 # Set the working directory to the project root
@@ -43,7 +45,7 @@ def EL_sparsify(graph, edge_raw_features, strategy='random', upto=0.7):
     last_interactions = grouped.last().reset_index()
     
     # TODO: add random interactions --> 10% - 30%
-    # we can do different selection strategy - right now random only
+    # we can do different selection strategy - right now random only - always keep strategy in small caps here
     match strategy:
         case 'random':
             # Randomly sample rows without replacement
@@ -52,8 +54,12 @@ def EL_sparsify(graph, edge_raw_features, strategy='random', upto=0.7):
             # calculate page rank of a dataset
             # sample upto given percentage to be removed - since we are rejecting hence it should be different than selecting
             # use top % nodes and remove (1-upto) nodes
-            graph = build_graph(tmp_graph)
-            page_rank_scores = temporal_page_rank(graph)
+            # naive method
+            # graph = build_graph(tmp_graph)
+            # page_rank_scores = temporal_page_rank(graph)
+            # Official method
+            page_rank_scores = get_temporal_pagerank(tmp_graph)
+            
             # Sort nodes by PageRank scores
             sorted_nodes = sorted(page_rank_scores.items(), key=lambda item: item[1], reverse=True)
             # Calculate the top upto% of nodes
@@ -64,10 +70,11 @@ def EL_sparsify(graph, edge_raw_features, strategy='random', upto=0.7):
 
             # Remove rows from graph_df where either source or target node is in the top 30% nodes
             sampled_df = modified_df[~modified_df['u'].isin(top_x_percent_node_ids) & ~modified_df['i'].isin(top_x_percent_node_ids)]
-        case 'ts_tpr_remove':
-            # calculate timestep level tpr
+        case 'ts_tpr_remove_ss':
+            # calculate timestamp level tpr
             # ts_level_tpr = temporal_pagerank_with_timestamps(tmp_graph)
-            ts_level_tpr = calc_timestamp_pagerank(tmp_graph)
+            
+            ts_level_tpr = calc_timestamp_pagerank(tmp_graph)  # snapshot implementation
             
             ts_aggregated_scores= {}
             for ts, scores in ts_level_tpr.items():
@@ -82,10 +89,94 @@ def EL_sparsify(graph, edge_raw_features, strategy='random', upto=0.7):
             
             top_x_percent_timestamps = [timestamp for timestamp, _ in sorted_timestamps[:top_x_percent_count]]
             
-            sampled_df = modified_df[~modified_df['ts'].isin(top_x_percent_timestamps)]  # should we keep full training data - as we are already dropping duplicates                
+            sampled_df = modified_df[~modified_df['ts'].isin(top_x_percent_timestamps)]  # should we keep full training data - as we are already dropping duplicates
+        case 'ts_tpr_remove_inc':
+            # incremental 
+            # ts_level_tpr = calc_inc_timestamp_pagerank(tmp_graph)  # incremental implementation
+            ts_level_tpr = optimized_calc_inc_timestamp_pagerank(tmp_graph)  # incremental implementation
+            
+            ts_aggregated_scores= {}
+            for ts, scores in ts_level_tpr.items():
+                agg_scores=sum(scores.values()) # what different aggregation can I try here?
+                ts_aggregated_scores[ts]=agg_scores
+            
+            # Sort timestamps by aggregated PageRank scores
+            sorted_timestamps = sorted(ts_aggregated_scores.items(),
+                                    key=lambda item: item[1], reverse=True)
+            
+            top_x_percent_count = int(len(sorted_timestamps) *(1-upto))
+            
+            top_x_percent_timestamps = [timestamp for timestamp, _ in sorted_timestamps[:top_x_percent_count]]
+            
+            sampled_df = modified_df[~modified_df['ts'].isin(top_x_percent_timestamps)]
+        case 'ts_tpr_remove_mss':
+            # based in maximum mean shift strategy
+            mean_shifts = mean_shift_removal(tmp_graph)
+            
+            print('back to sparsify_data file....')
+            
+            threshold_index = int(len(mean_shifts) * (1-upto) / 100)
+            top_mean_shifts = mean_shifts[:threshold_index]
+            
+            top_x_percent_timestamps = [ts for ts, _ in top_mean_shifts]
+            
+            sampled_df = modified_df[~modified_df['ts'].isin(top_x_percent_timestamps)]
+            print('data sampling successful.')
+        case 'ts_tpr_remove_mss_2':
+            # based in maximum mean shift strategy
+            mean_shifts = mean_shift_removal2(tmp_graph)
+            
+            print('back to sparsify_data file....')
+            
+            threshold_index = int(len(mean_shifts) * (1-upto) / 100)
+            top_mean_shifts = mean_shifts[:threshold_index]
+            
+            top_x_percent_timestamps = [ts for ts, _ in top_mean_shifts]
+            
+            sampled_df = modified_df[~modified_df['ts'].isin(top_x_percent_timestamps)]
+            print('data sampling successful.')
+        case 'ts_tpr_remove_cosine':
+            # based on maximum mean shift strategy
+            mean_shifts = compute_mean_shifts_with_metrics(tmp_graph, metric='cosine')
+            
+            print('back to sparsify_data file....')
+            
+            threshold_index = int(len(mean_shifts) * (1-upto) / 100)
+            top_mean_shifts = mean_shifts[:threshold_index]
+            
+            top_x_percent_timestamps = [ts for ts, _ in top_mean_shifts]
+            
+            sampled_df = modified_df[~modified_df['ts'].isin(top_x_percent_timestamps)]
+            print('data sampling successful.')
+        case 'ts_tpr_remove_euclidean':
+            # based on maximum mean shift strategy
+            mean_shifts = compute_mean_shifts_with_metrics(tmp_graph, metric='euclidean')
+            
+            print('back to sparsify_data file....')
+            
+            threshold_index = int(len(mean_shifts) * (1-upto) / 100)
+            top_mean_shifts = mean_shifts[:threshold_index]
+            
+            top_x_percent_timestamps = [ts for ts, _ in top_mean_shifts]
+            
+            sampled_df = modified_df[~modified_df['ts'].isin(top_x_percent_timestamps)]
+            print('data sampling successful.')
+        case 'ts_tpr_remove_jaccard':
+            # based on maximum mean shift strategy
+            mean_shifts = compute_mean_shifts_with_metrics(tmp_graph, metric='jaccard')
+            
+            print('back to sparsify_data file....')
+            
+            threshold_index = int(len(mean_shifts) * (1-upto) / 100)
+            top_mean_shifts = mean_shifts[:threshold_index]
+            
+            top_x_percent_timestamps = [ts for ts, _ in top_mean_shifts]
+            
+            sampled_df = modified_df[~modified_df['ts'].isin(top_x_percent_timestamps)]
+            print('data sampling successful.')
         case _:
             raise ValueError(f'Unknown strategy {strategy}')
-    
+    # TODO: concat only for random sparsification strategy
     EL_graph = (pd.concat([first_interactions,
                     sampled_df,
                     last_interactions])

@@ -71,8 +71,8 @@ class Data:
 
 
 def get_link_prediction_data(dataset_name: str, val_ratio: float,
-                             test_ratio: float, sparsify: bool = False,
-                             strategy:str='random', sampling_upto=0.7):
+                            test_ratio: float, sparsify: bool = False,
+                            strategy:str='random', sampling_upto=0.7):
     """
     generate data for link prediction task (inductive & transductive settings)
     :param dataset_name: str, dataset name

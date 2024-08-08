@@ -486,6 +486,7 @@ if __name__ == "__main__":
             sampling_upto = args.sampling_upto
         else:
             sampling_upto = 1.0
+            args.strategy = 'Default'
         save_result_folder = f"./saved_results/{args.model_name}/{args.dataset_name}/{args.strategy}/{sampling_upto}"
         os.makedirs(save_result_folder, exist_ok=True)
         save_result_path = os.path.join(save_result_folder, f"{args.save_model_name}.json")

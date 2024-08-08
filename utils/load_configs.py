@@ -51,7 +51,11 @@ def get_link_prediction_args(is_evaluation: bool = False):
                         help='strategy for the negative edge sampling')
     parser.add_argument('--load_best_configs', action='store_true', default=False, help='whether to load the best configurations')
     parser.add_argument('--sparsify', type=bool, default=False, help='sparsify the graph or not')
-    parser.add_argument('--strategy', type=str, default='random', choices=['random', 'tpr_remove', 'ts_tpr_remove'], help='strategy for the sparsification')
+    parser.add_argument('--strategy', type=str, default='random', choices=['random',
+                        'tpr_remove', 'ts_tpr_remove_ss', 'ts_tpr_remove_inc', 'ts_tpr_remove_MSS',
+                        'ts_tpr_remove_mss_2', 'ts_tpr_remove_cosine', 'ts_tpr_remove_euclidean',
+                        'ts_tpr_remove_jaccard'],
+                        help='strategy for the sparsification')
     parser.add_argument('--sampling_upto', type=float, default=0.7, help='sampling for the sparsification')
     
 
@@ -281,12 +285,17 @@ def get_node_classification_args():
     parser.add_argument('--test_interval_epochs', type=int, default=10, help='how many epochs to perform testing once')
     parser.add_argument('--load_best_configs', action='store_true', default=False, help='whether to load the best configurations')
     parser.add_argument('--sparsify', type=bool, default=False, help='sparsify the graph or not')
-    parser.add_argument('--strategy', type=str, default='random', choices=['random','tpr_remove', 'ts_tpr_remove'], help='strategy for the sparsification')
+    parser.add_argument('--strategy', type=str, default='random',
+                    choices=['random','tpr_remove', 'ts_tpr_remove_ss', 'ts_tpr_remove_inc',
+                    'ts_tpr_remove_MSS', 'ts_tpr_remove_mss_2', 'ts_tpr_remove_cosine', 'ts_tpr_remove_euclidean',
+                        'ts_tpr_remove_jaccard'],
+                    help='strategy for the sparsification')
     parser.add_argument('--sampling_upto', type=float, default=0.7, help='sampling for the sparsification')
 
     try:
         args = parser.parse_args()
         args.device = f'cuda:{args.gpu}' if torch.cuda.is_available() and args.gpu >= 0 else 'cpu'
+        # args.device = 'cpu'
     except:
         parser.print_help()
         sys.exit()
