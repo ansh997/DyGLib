@@ -9,6 +9,9 @@ from tqdm import tqdm
 import networkx as nx
 from scipy.sparse import csr_matrix
 from sklearn.metrics import pairwise_distances
+from scipy.special import rel_entr
+from scipy.stats import wasserstein_distance
+from scipy.spatial.distance import jensenshannon
 
 # Set the working directory to the project root
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..')) # this might cause issue
@@ -569,6 +572,12 @@ def compute_mean_shifts_with_metrics(graph_df, beta=0.85, alpha=0.15, metric='me
         elif metric == 'cosine':
             # Cosine Similarity
             value = np.dot(curr_pagerank, prev_pagerank) / (np.linalg.norm(curr_pagerank) * np.linalg.norm(prev_pagerank))
+        elif metric == 'wasserstein':
+            value = wasserstein_distance(prev_pagerank, curr_pagerank)
+        elif metric == 'kl_divergence':
+            value = np.sum(rel_entr(prev_pagerank, curr_pagerank))
+        elif metric == 'jensen_shannon_divergence':
+            value = jensenshannon(prev_pagerank, curr_pagerank)    
         else:
             raise ValueError(f"Unsupported metric: {metric} should be in mean_shift, euclidean, jaccard, cosine.")
         

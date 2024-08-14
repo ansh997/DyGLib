@@ -134,7 +134,7 @@ def get_link_prediction_data(dataset_name: str, val_ratio: float,
     if sparsify:
         train_graph_df = graph_df[graph_df['ts'] < val_time]
         train_els_graph_df, _ = EL_sparsify(train_graph_df, edge_raw_features,
-                                            strategy=strategy, upto=sampling_upto)
+                                            strategy=strategy, upto=sampling_upto, dataset_name=dataset_name)
         # TODO: remove test node test
         train_els_graph_df = train_els_graph_df[~train_els_graph_df['u'].isin(new_test_node_set)]
         train_els_graph_df = train_els_graph_df[~train_els_graph_df['i'].isin(new_test_node_set)]

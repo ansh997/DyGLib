@@ -20,7 +20,7 @@ sys.path.append(project_root)
 # scratch_location = r'/scratch/hmnshpl'
 scratch_location = rf'/scratch/{getpass.getuser()}'
 
-def EL_sparsify(graph, edge_raw_features, strategy='random', upto=0.7):
+def EL_sparsify(graph, edge_raw_features, strategy='random', upto=0.7, dataset_name=''):
     """_summary_
 
     Args:
@@ -30,6 +30,9 @@ def EL_sparsify(graph, edge_raw_features, strategy='random', upto=0.7):
     Returns:
         _type_: sparsified graph with edge features
     """
+    if dataset_name == '':
+        raise ValueError('Please pass a dataset name.')
+    
     strategy = strategy.lower() # making it case insensitive
     tmp_graph = graph.copy(deep=True)
     tmp_graph = tmp_graph.sort_values(by=['u', 'i', 'ts'])
@@ -109,81 +112,198 @@ def EL_sparsify(graph, edge_raw_features, strategy='random', upto=0.7):
             top_x_percent_timestamps = [timestamp for timestamp, _ in sorted_timestamps[:top_x_percent_count]]
             
             sampled_df = modified_df[~modified_df['ts'].isin(top_x_percent_timestamps)]
-        case 'ts_tpr_remove_mss':
+        case 'ts_tpr_remove_mss':  # problem started from here
             # based in maximum mean shift strategy
-            mean_shifts = mean_shift_removal(tmp_graph)
+            metric = 'mss'
+            filename = f'{scratch_location}/sparsified_data/{dataset_name}_{metric}_sparsified_{upto}.csv'
+            if os.path.exists(filename):
+                print(f'reading {filename}...', end=' ')
+                sampled_df=pd.read_csv(filename)
+                sampled_df = sampled_df.loc[:, ~sampled_df.columns.str.contains('^Unnamed')]
+                print(' done')
+            else:
+                mean_shifts = mean_shift_removal(tmp_graph)
             
-            print('back to sparsify_data file....')
-            
-            threshold_index = int(len(mean_shifts) * (1-upto) / 100)
-            top_mean_shifts = mean_shifts[:threshold_index]
-            
-            top_x_percent_timestamps = [ts for ts, _ in top_mean_shifts]
-            
-            sampled_df = modified_df[~modified_df['ts'].isin(top_x_percent_timestamps)]
+                print('back to sparsify_data file....')
+                
+                threshold_index = int(len(mean_shifts) * (1-upto))
+                top_mean_shifts = mean_shifts[:threshold_index]
+                
+                top_x_percent_timestamps = [ts for ts, _ in top_mean_shifts]
+                
+                sampled_df = modified_df[~modified_df['ts'].isin(top_x_percent_timestamps)]
+                
+                sampled_df.drop(['Unnamed: 0'], axis=1).to_csv(filename)
             print('data sampling successful.')
         case 'ts_tpr_remove_mss_2':
             # based in maximum mean shift strategy
-            mean_shifts = mean_shift_removal2(tmp_graph)
+            metric = 'mss2'
+            filename = f'{scratch_location}/sparsified_data/{dataset_name}_{metric}_sparsified_{upto}.csv'
+            if os.path.exists(filename):
+                print(f'reading {filename}...', end=' ')
+                sampled_df=pd.read_csv(filename)
+                sampled_df = sampled_df.loc[:, ~sampled_df.columns.str.contains('^Unnamed')]
+                print(' done')
+            else:
+                mean_shifts = mean_shift_removal2(tmp_graph)
             
-            print('back to sparsify_data file....')
-            
-            threshold_index = int(len(mean_shifts) * (1-upto) / 100)
-            top_mean_shifts = mean_shifts[:threshold_index]
-            
-            top_x_percent_timestamps = [ts for ts, _ in top_mean_shifts]
-            
-            sampled_df = modified_df[~modified_df['ts'].isin(top_x_percent_timestamps)]
+                print('back to sparsify_data file....')
+                
+                threshold_index = int(len(mean_shifts) * (1-upto))
+                top_mean_shifts = mean_shifts[:threshold_index]
+                
+                top_x_percent_timestamps = [ts for ts, _ in top_mean_shifts]
+                
+                sampled_df = modified_df[~modified_df['ts'].isin(top_x_percent_timestamps)]
+                sampled_df.drop(['Unnamed: 0'], axis=1).to_csv(filename)
             print('data sampling successful.')
         case 'ts_tpr_remove_cosine':
             # based on maximum mean shift strategy
-            mean_shifts = compute_mean_shifts_with_metrics(tmp_graph, metric='cosine')
-            
-            print('back to sparsify_data file....')
-            
-            threshold_index = int(len(mean_shifts) * (1-upto) / 100)
-            top_mean_shifts = mean_shifts[:threshold_index]
-            
-            top_x_percent_timestamps = [ts for ts, _ in top_mean_shifts]
-            
-            sampled_df = modified_df[~modified_df['ts'].isin(top_x_percent_timestamps)]
+            metric = 'cosine'
+            filename = f'{scratch_location}/sparsified_data/{dataset_name}_{metric}_sparsified_{upto}.csv'
+            if os.path.exists(filename):
+                print(f'reading {filename}...', end=' ')
+                sampled_df=pd.read_csv(filename)
+                sampled_df = sampled_df.loc[:, ~sampled_df.columns.str.contains('^Unnamed')]
+                print(' done')
+            else:
+                mean_shifts = compute_mean_shifts_with_metrics(tmp_graph, metric='cosine')
+                
+                print('back to sparsify_data file....')
+                
+                threshold_index = int(len(mean_shifts) * (1-upto))
+                top_mean_shifts = mean_shifts[:threshold_index]
+                
+                top_x_percent_timestamps = [ts for ts, _ in top_mean_shifts]
+                
+                sampled_df = modified_df[~modified_df['ts'].isin(top_x_percent_timestamps)]
+                sampled_df.drop(['Unnamed: 0'], axis=1).to_csv(filename)
+                print(filename, ' saved.')
             print('data sampling successful.')
         case 'ts_tpr_remove_euclidean':
             # based on maximum mean shift strategy
-            mean_shifts = compute_mean_shifts_with_metrics(tmp_graph, metric='euclidean')
-            
-            print('back to sparsify_data file....')
-            
-            threshold_index = int(len(mean_shifts) * (1-upto) / 100)
-            top_mean_shifts = mean_shifts[:threshold_index]
-            
-            top_x_percent_timestamps = [ts for ts, _ in top_mean_shifts]
-            
-            sampled_df = modified_df[~modified_df['ts'].isin(top_x_percent_timestamps)]
+            metric = 'euclidean'
+            filename = f'{scratch_location}/sparsified_data/{dataset_name}_{metric}_sparsified_{upto}.csv'
+            if os.path.exists(filename):
+                print(f'reading {filename}...', end=' ')
+                sampled_df=pd.read_csv(filename)
+                sampled_df = sampled_df.loc[:, ~sampled_df.columns.str.contains('^Unnamed')]
+                print(' done')
+            else:
+                mean_shifts = compute_mean_shifts_with_metrics(tmp_graph, metric='euclidean')
+                
+                print('back to sparsify_data file....')
+                
+                threshold_index = int(len(mean_shifts) * (1-upto))
+                top_mean_shifts = mean_shifts[:threshold_index]
+                
+                top_x_percent_timestamps = [ts for ts, _ in top_mean_shifts]
+                
+                sampled_df = modified_df[~modified_df['ts'].isin(top_x_percent_timestamps)]
+                sampled_df.drop(['Unnamed: 0'], axis=1).to_csv(filename)
+                print(filename, ' saved.')
             print('data sampling successful.')
         case 'ts_tpr_remove_jaccard':
             # based on maximum mean shift strategy
-            mean_shifts = compute_mean_shifts_with_metrics(tmp_graph, metric='jaccard')
+            metric = 'jaccard'
+            filename = f'{scratch_location}/sparsified_data/{dataset_name}_{metric}_sparsified_{upto}.csv'
+            if os.path.exists(filename):
+                print(f'reading {filename}...', end=' ')
+                sampled_df=pd.read_csv(filename)
+                sampled_df = sampled_df.loc[:, ~sampled_df.columns.str.contains('^Unnamed')]
+                print(' done')
+            else:
+                mean_shifts = compute_mean_shifts_with_metrics(tmp_graph, metric='jaccard')
             
-            print('back to sparsify_data file....')
+                print('back to sparsify_data file....')
+                
+                threshold_index = int(len(mean_shifts) * (1-upto))
+                top_mean_shifts = mean_shifts[:threshold_index]
+                
+                top_x_percent_timestamps = [ts for ts, _ in top_mean_shifts]
+                
+                sampled_df = modified_df[~modified_df['ts'].isin(top_x_percent_timestamps)]
+                sampled_df.drop(['Unnamed: 0'], axis=1).to_csv(filename)
+                
+            print('data sampling successful.')
+        case 'ts_tpr_remove_wasserstein':
+            # based on maximum mean shift strategy
+            metric = 'wasserstein'
+            filename = f'{scratch_location}/sparsified_data/{dataset_name}_{metric}_sparsified_{upto}.csv'
+            if os.path.exists(filename):
+                print(f'reading {filename}...', end=' ')
+                sampled_df=pd.read_csv(filename)
+                sampled_df = sampled_df.loc[:, ~sampled_df.columns.str.contains('^Unnamed')]
+                print(' done')
+            else:
+                mean_shifts = compute_mean_shifts_with_metrics(tmp_graph, metric='wasserstein')
             
-            threshold_index = int(len(mean_shifts) * (1-upto) / 100)
-            top_mean_shifts = mean_shifts[:threshold_index]
+                print('back to sparsify_data file....')
+                
+                threshold_index = int(len(mean_shifts) * (1-upto))
+                top_mean_shifts = mean_shifts[:threshold_index]
+                
+                top_x_percent_timestamps = [ts for ts, _ in top_mean_shifts]
+                
+                sampled_df = modified_df[~modified_df['ts'].isin(top_x_percent_timestamps)]
+                sampled_df.drop(['Unnamed: 0'], axis=1).to_csv(filename)
+            print('data sampling successful.')
+        case 'ts_tpr_remove_kl_divergence':
+            # based on maximum mean shift strategy
+            metric = 'kl_divergence'
+            filename = f'{scratch_location}/sparsified_data/{dataset_name}_{metric}_sparsified_{upto}.csv'
+            if os.path.exists(filename):
+                print(f'reading {filename}...', end=' ')
+                sampled_df=pd.read_csv(filename)
+                sampled_df = sampled_df.loc[:, ~sampled_df.columns.str.contains('^Unnamed')]
+                print(' done')
+            else:
+                mean_shifts = compute_mean_shifts_with_metrics(tmp_graph, metric=metric)
             
-            top_x_percent_timestamps = [ts for ts, _ in top_mean_shifts]
+                print('back to sparsify_data file....')
+                
+                threshold_index = int(len(mean_shifts) * (1-upto))
+                top_mean_shifts = mean_shifts[:threshold_index]
+                
+                top_x_percent_timestamps = [ts for ts, _ in top_mean_shifts]
+                
+                sampled_df = modified_df[~modified_df['ts'].isin(top_x_percent_timestamps)]
+                sampled_df.drop(['Unnamed: 0'], axis=1).to_csv(filename)
+            print('data sampling successful.')
+        case 'ts_tpr_remove_jensen_shannon_divergence':
+            # based on maximum mean shift strategy
+            metric = 'jensen_shannon_divergence'
+            filename = f'{scratch_location}/sparsified_data/{dataset_name}_{metric}_sparsified_{upto}.csv'
+            if os.path.exists(filename):
+                print(f'reading {filename}...', end=' ')
+                sampled_df=pd.read_csv(filename)
+                sampled_df = sampled_df.loc[:, ~sampled_df.columns.str.contains('^Unnamed')]
+                print(' done')
+            else:
+                mean_shifts = compute_mean_shifts_with_metrics(tmp_graph, metric=metric)
             
-            sampled_df = modified_df[~modified_df['ts'].isin(top_x_percent_timestamps)]
+                print('back to sparsify_data file....')
+                
+                threshold_index = int(len(mean_shifts) * (1-upto))
+                top_mean_shifts = mean_shifts[:threshold_index]
+                
+                top_x_percent_timestamps = [ts for ts, _ in top_mean_shifts]
+                
+                sampled_df = modified_df[~modified_df['ts'].isin(top_x_percent_timestamps)]
+                sampled_df.drop(['Unnamed: 0'], axis=1).to_csv(filename)
             print('data sampling successful.')
         case _:
             raise ValueError(f'Unknown strategy {strategy}')
     # TODO: concat only for random sparsification strategy
-    EL_graph = (pd.concat([first_interactions,
-                    sampled_df,
-                    last_interactions])
-                    .drop_duplicates()
-                    .reset_index(drop=True)
-                    .drop(['Unnamed: 0'], axis=1)
-                    .sort_values(['idx'], ascending=True) # this fixed it.
+    EL_graph = (pd.concat([
+        # first_interactions,
+        sampled_df,
+        # last_interactions
+        ])
+        .drop_duplicates()
+        .reset_index(drop=True)
+        # .drop(['Unnamed: 0'], axis=1)
+        .sort_values(['idx'], ascending=True) # this fixed it.
                 )
     
     EL_edge_raw_features = edge_raw_features # edge_raw_features[sorted(EL_graph['idx'].values)]
