@@ -11,7 +11,11 @@ from scipy.sparse import csr_matrix
 from sklearn.metrics import pairwise_distances
 from scipy.special import rel_entr
 from scipy.stats import wasserstein_distance
-from scipy.spatial.distance import jensenshannon
+from scipy.spatial.distance import jensenshannon, chebyshev
+from collections import Counter, defaultdict
+import numpy as np
+from tqdm import tqdm
+import heapq
 
 # Set the working directory to the project root
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..')) # this might cause issue
@@ -577,7 +581,9 @@ def compute_mean_shifts_with_metrics(graph_df, beta=0.85, alpha=0.15, metric='me
         elif metric == 'kl_divergence':
             value = np.sum(rel_entr(prev_pagerank, curr_pagerank))
         elif metric == 'jensen_shannon_divergence':
-            value = jensenshannon(prev_pagerank, curr_pagerank)    
+            value = jensenshannon(prev_pagerank, curr_pagerank) 
+        elif metric == 'chebyshev':
+            value = chebyshev(prev_pagerank, curr_pagerank)
         else:
             raise ValueError(f"Unsupported metric: {metric} should be in mean_shift, euclidean, jaccard, cosine.")
         
@@ -591,9 +597,135 @@ def compute_mean_shifts_with_metrics(graph_df, beta=0.85, alpha=0.15, metric='me
     print('Sorting by the selected metric completed.')
     
     return results
-    
-    
-    
 
+def compute_overall_outgoing_degree(E):
+    return Counter(E['u'])
+
+def calculate_temporal_edge_rank(_graph_df, beta=0.85, alpha=0.15):
+    graph_df = _graph_df.copy(deep=True)
+    
+    # Extract nodes, edges, and timestamps as a list of tuples
+    edges = graph_df[['u', 'i', 'ts']].values.tolist()
+    edges = [(int(u), int(v), float(t)) for u, v, t in edges]
+    
+    _, ts_tpr = temporal_pagerank_heap_np(edges, beta, alpha, True)
+    
+    # Create numpy array for efficient operations
+    edges_array = np.array(edges, dtype=[('u', int), ('v', int), ('t', float)])
+    temporal_outgoing_degree = compute_overall_outgoing_degree(edges_array)
+    
+    # Extract timestamps and PageRank values
+    timestamps, pagerank_arrays = zip(*ts_tpr)
+    timestamps = np.array(timestamps)
+    pagerank_arrays = np.array(pagerank_arrays)
+    
+    ts_to_node_dict = graph_df.groupby('ts')['u'].apply(np.array).to_dict()
+    
+    ter_dict = {}
+    
+    for i in tqdm(range(len(timestamps)), desc='Calculating TER'):
+        r = pagerank_arrays[i]
+        ts = timestamps[i]
+        node_list = ts_to_node_dict[ts]
+        ter = r[node_list] / np.vectorize(temporal_outgoing_degree.__getitem__)(node_list)
+        ter_dict[ts] = np.sum(ter)
+    
+    return ter_dict
+
+
+
+# Function to compute the global Temporal PageRank
+def compute_global_temporal_pagerank(edges, beta=0.85, alpha=0.15):
+    # Use your existing Temporal PageRank calculation method (e.g., temporal_pagerank_heap_np)
+    # This should return a dictionary with nodes as keys and global TPR as values
+    global_tpr, _ = temporal_pagerank_heap_np(edges, beta, alpha, False)
+    return global_tpr
+
+# Function to compute timestamp-specific Temporal PageRank
+def compute_timestamp_specific_temporal_pagerank(edges, beta=0.85, alpha=0.15):
+    # Use your existing Temporal PageRank calculation method with timestamp-specific mode
+    # This should return a list of (timestamp, dict) where dict contains node-specific TPR
+    _, ts_tpr = temporal_pagerank_heap_np(edges, beta, alpha, True)
+    return ts_tpr
+
+# Function to compute the outgoing degree of nodes globally
+def compute_global_outgoing_degree(edges):
+    edges = np.array(edges, dtype=[('u', int), ('v', int), ('t', float)])
+    u_values = edges['u'].tolist()
+    return dict(Counter(u_values))
+
+# Function to compute the outgoing degree of nodes at specific timestamps
+def compute_timestamp_specific_outgoing_degree(edges):
+    edges_by_ts = defaultdict(list)
+    for u, v, t in edges:
+        edges_by_ts[t].append((u, v))
+    
+    ts_outgoing_degree = {}
+    for t, edge_list in tqdm(edges_by_ts.items()):
+        ts_outgoing_degree[t] = dict(Counter([u for u, _ in edge_list]))
+    
+    return ts_outgoing_degree
+
+
+def compute_cumulative_timestamp_specific_outgoing_degree(graph_df):
+    # Sort by timestamp to ensure cumulative counting is correct
+    graph_df = graph_df.sort_values('ts')
+    
+    # Initialize cumulative outgoing degree dictionary
+    cumulative_outgoing_degree = defaultdict(int)
+    
+    # Initialize result dictionary
+    ts_outgoing_degree = {}
+    
+    # Iterate through the DataFrame row by row
+    for ts, group in tqdm(graph_df.groupby('ts'), desc="Calculating cumulative outgoing degree"):
+        # Update cumulative counts
+        for u in group['u']:
+            cumulative_outgoing_degree[u] += 1
+            
+        # Store the current cumulative counts in the result dictionary
+        ts_outgoing_degree[ts] = dict(cumulative_outgoing_degree)
+    
+    return ts_outgoing_degree
+
+
+
+# Function to compute Temporal EdgeRank for each edge
+def compute_temporal_edgerank(graph_df, beta=0.85, alpha=0.15, gamma=0.5):
+    edges_list = graph_df[['u', 'i', 'ts']].values
+    edges = np.array(
+        list(zip(edges_list[:, 0].astype(int), edges_list[:, 1].astype(int), edges_list[:, 2].astype(float))),
+        dtype=[('u', int), ('v', int), ('t', float)]
+    )
+    
+    # edges
+    print(f'Calculating TPR...', end='\r')
+    global_tpr, ts_tpr = temporal_pagerank_heap_np(edges, beta, alpha, True)
+    # Convert ts_tpr to a dictionary with timestamps as keys
+    ts_tpr = {row['t']: row['r'] for row in ts_tpr}
+    print(f'Calculated TPR      ')
+    
+    # ts_tpr = compute_timestamp_specific_temporal_pagerank(edges, beta, alpha)  # redundant
+    print(f'Calculating global_out_deg...', end='\r')
+    global_out_deg = compute_global_outgoing_degree(edges)
+    print(f'Calculated global_out_deg      ')
+    print(f'Calculating cumulative_timestamp_specific_outgoing_degree...', end='\r')
+    ts_out_deg = compute_cumulative_timestamp_specific_outgoing_degree(graph_df[['u', 'i', 'ts']])
+    print(f'Calculated cumulative_timestamp_specific_outgoing_degree       ')
+    
+    ter_dict = {}
+
+    for u, _, t in tqdm((edges), desc='Processing'):
+        TER_global = global_tpr[u] / global_out_deg[u]
+        TER_ts = ts_tpr[t][u] / ts_out_deg[t][u]
+        ter_ts = gamma * TER_global + (1 - gamma) * TER_ts
+        ter_dict[t] = ter_ts
+        
+    return ter_dict
+
+# Main function to call and calculate Combined Temporal EdgeRank
+def calculate_combined_temporal_edgerank(graph_df, beta=0.85, alpha=0.15, gamma=0.5):
+    
+    return compute_temporal_edgerank(graph_df, beta, alpha, gamma)
 
 

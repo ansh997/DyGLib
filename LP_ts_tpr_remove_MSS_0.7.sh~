@@ -4,7 +4,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --mem-per-cpu=2G
 #SBATCH --output=/home2/hmnshpl/projects/results/DygLib/Link_Prediciton_ts_tpr_remove_MSS_0.7.txt
-#SBATCH --nodelist gnode085
+#SBATCH --nodelist gnode074
 #SBATCH --time=96:00:00
 #SBATCH --mail-user=himanshu.pal@research.iiit.ac.in
 #SBATCH --mail-type=ALL

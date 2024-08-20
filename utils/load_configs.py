@@ -54,7 +54,8 @@ def get_link_prediction_args(is_evaluation: bool = False):
     parser.add_argument('--strategy', type=str, default='random', choices=['random',
                         'tpr_remove', 'ts_tpr_remove_ss', 'ts_tpr_remove_inc', 'ts_tpr_remove_MSS',
                         'ts_tpr_remove_mss_2', 'ts_tpr_remove_cosine', 'ts_tpr_remove_euclidean',
-                        'ts_tpr_remove_jaccard', 'ts_tpr_remove_wasserstein', 'ts_tpr_remove_kl_divergence', 'ts_tpr_remove_jensen_shannon_divergence'],
+                        'ts_tpr_remove_jaccard', 'ts_tpr_remove_wasserstein', 'ts_tpr_remove_kl_divergence', 'ts_tpr_remove_chebyshev',
+                        'ts_tpr_remove_jensen_shannon_divergence', 'ts_tpr_remove_TER', 'ts_tpr_remove_combined_ter'],
                         help='strategy for the sparsification')
     parser.add_argument('--sampling_upto', type=float, default=0.7, help='sampling for the sparsification')
     
@@ -288,7 +289,8 @@ def get_node_classification_args():
     parser.add_argument('--strategy', type=str, default='random',
                     choices=['random','tpr_remove', 'ts_tpr_remove_ss', 'ts_tpr_remove_inc',
                     'ts_tpr_remove_MSS', 'ts_tpr_remove_mss_2', 'ts_tpr_remove_cosine', 'ts_tpr_remove_euclidean',
-                        'ts_tpr_remove_jaccard', 'ts_tpr_remove_wasserstein', 'ts_tpr_remove_kl_divergence', 'ts_tpr_remove_jensen_shannon_divergence'],
+                    'ts_tpr_remove_jaccard', 'ts_tpr_remove_wasserstein', 'ts_tpr_remove_kl_divergence', 'ts_tpr_remove_chebyshev',
+                    'ts_tpr_remove_jensen_shannon_divergence', 'ts_tpr_remove_TER', 'ts_tpr_remove_combined_ter'],
                     help='strategy for the sparsification')
     parser.add_argument('--sampling_upto', type=float, default=0.7, help='sampling for the sparsification')
 

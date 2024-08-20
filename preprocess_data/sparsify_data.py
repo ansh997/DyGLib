@@ -10,7 +10,8 @@ from distutils.dir_util import copy_tree
 from .preprocess_data import check_data
 from .temporal_pr import temporal_pagerank_with_timestamps, calc_timestamp_pagerank,\
     calc_inc_timestamp_pagerank, optimized_calc_inc_timestamp_pagerank,\
-    get_temporal_pagerank, mean_shift_removal, mean_shift_removal2, compute_mean_shifts_with_metrics
+    get_temporal_pagerank, mean_shift_removal, mean_shift_removal2, compute_mean_shifts_with_metrics, calculate_temporal_edge_rank,\
+    calculate_combined_temporal_edgerank
 import networkx as nx
 
 # Set the working directory to the project root
@@ -38,14 +39,14 @@ def EL_sparsify(graph, edge_raw_features, strategy='random', upto=0.7, dataset_n
     tmp_graph = tmp_graph.sort_values(by=['u', 'i', 'ts'])
     
     # Exclude the first and last rows based on 'u' and 'i'
-    grouped = tmp_graph.groupby(['u', 'i'])
-    modified_df = grouped.apply(lambda x: x.iloc[1:-1]).reset_index(drop=True)
+    # grouped = tmp_graph.groupby(['u', 'i'])
+    modified_df = tmp_graph.copy(deep=True)  # grouped.apply(lambda x: x.iloc[1:-1]).reset_index(drop=True)
     
     sample_size = int(len(modified_df) * upto)
     
-    # Group by 'u' and 'i' and capture the first and last interactions
-    first_interactions = grouped.first().reset_index()
-    last_interactions = grouped.last().reset_index()
+    # # Group by 'u' and 'i' and capture the first and last interactions
+    # first_interactions = grouped.first().reset_index()
+    # last_interactions = grouped.last().reset_index()
     
     # TODO: add random interactions --> 10% - 30%
     # we can do different selection strategy - right now random only - always keep strategy in small caps here
@@ -290,6 +291,79 @@ def EL_sparsify(graph, edge_raw_features, strategy='random', upto=0.7, dataset_n
                 top_x_percent_timestamps = [ts for ts, _ in top_mean_shifts]
                 
                 sampled_df = modified_df[~modified_df['ts'].isin(top_x_percent_timestamps)]
+                sampled_df.drop(['Unnamed: 0'], axis=1).to_csv(filename)
+            print('data sampling successful.')
+        case 'ts_tpr_remove_chebyshev':
+            # based on maximum mean shift strategy
+            metric = 'chebyshev'
+            filename = f'{scratch_location}/sparsified_data/{dataset_name}_{metric}_sparsified_{upto}.csv'
+            if os.path.exists(filename):
+                print(f'reading {filename}...', end=' ')
+                sampled_df=pd.read_csv(filename)
+                sampled_df = sampled_df.loc[:, ~sampled_df.columns.str.contains('^Unnamed')]
+                print(' done')
+            else:
+                mean_shifts = compute_mean_shifts_with_metrics(tmp_graph, metric=metric)
+            
+                print('back to sparsify_data file....')
+                
+                threshold_index = int(len(mean_shifts) * (1-upto))
+                top_mean_shifts = mean_shifts[:threshold_index]
+                
+                top_x_percent_timestamps = [ts for ts, _ in top_mean_shifts]
+                
+                sampled_df = modified_df[~modified_df['ts'].isin(top_x_percent_timestamps)]
+                sampled_df.drop(['Unnamed: 0'], axis=1).to_csv(filename)
+            print('data sampling successful.')
+        case 'ts_tpr_remove_ter':
+            # based on maximum mean shift strategy
+            metric = 'TER'
+            filename = f'{scratch_location}/sparsified_data/{dataset_name}_{metric}_sparsified_{upto}.csv'
+            if os.path.exists(filename):
+                print(f'reading {filename}...', end=' ')
+                sampled_df=pd.read_csv(filename)
+                sampled_df = sampled_df.loc[:, ~sampled_df.columns.str.contains('^Unnamed')]
+                print(' done')
+            else:
+                ter_dict = calculate_temporal_edge_rank(tmp_graph)
+                
+                sorted_ter_dict = dict(sorted(ter_dict.items(), key=lambda x: x[1], reverse=True))
+                sorted_ter_dict = list(sorted_ter_dict.items())
+            
+                print('back to sparsify_data file....')
+
+                threshold_index = int(len(sorted_ter_dict) * (1-upto))
+
+                top_mean_shifts = sorted_ter_dict[:threshold_index]
+
+                top_x_percent_timestamps = [ts for ts, _ in top_mean_shifts]
+
+                sampled_df = tmp_graph[~tmp_graph['ts'].isin(top_x_percent_timestamps)]
+                sampled_df.drop(['Unnamed: 0'], axis=1).to_csv(filename)
+            print('data sampling successful.')
+        case 'ts_tpr_remove_combined_ter':
+            metric = 'Combined_TER'
+            filename = f'{scratch_location}/sparsified_data/{dataset_name}_{metric}_sparsified_{upto}.csv'
+            if os.path.exists(filename):
+                print(f'reading {filename}...', end=' ')
+                sampled_df=pd.read_csv(filename)
+                sampled_df = sampled_df.loc[:, ~sampled_df.columns.str.contains('^Unnamed')]
+                print(' done')
+            else:
+                ter_dict = calculate_combined_temporal_edgerank(tmp_graph)
+                
+                sorted_ter_dict = dict(sorted(ter_dict.items(), key=lambda x: x[1], reverse=True))
+                sorted_ter_dict = list(sorted_ter_dict.items())
+            
+                print('back to sparsify_data file....')
+
+                threshold_index = int(len(sorted_ter_dict) * (1-upto))
+
+                top_mean_shifts = sorted_ter_dict[:threshold_index]
+
+                top_x_percent_timestamps = [ts for ts, _ in top_mean_shifts]
+
+                sampled_df = tmp_graph[~tmp_graph['ts'].isin(top_x_percent_timestamps)]
                 sampled_df.drop(['Unnamed: 0'], axis=1).to_csv(filename)
             print('data sampling successful.')
         case _:
