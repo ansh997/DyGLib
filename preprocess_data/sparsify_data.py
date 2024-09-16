@@ -21,7 +21,7 @@ sys.path.append(project_root)
 # scratch_location = r'/scratch/hmnshpl'
 scratch_location = rf'/scratch/{getpass.getuser()}'
 
-def EL_sparsify(graph, edge_raw_features, strategy='random', upto=0.7, dataset_name=''):
+def EL_sparsify(graph, edge_raw_features, strategy='random', upto=0.7, dataset_name='', save=False):
     """_summary_
 
     Args:
@@ -115,15 +115,15 @@ def EL_sparsify(graph, edge_raw_features, strategy='random', upto=0.7, dataset_n
             sampled_df = modified_df[~modified_df['ts'].isin(top_x_percent_timestamps)]
         case 'ts_tpr_remove_mss':  # problem started from here
             # based in maximum mean shift strategy
-            metric = 'mss'
-            filename = f'{scratch_location}/sparsified_data/{dataset_name}_{metric}_sparsified_{upto}.csv'
+            metric = strategy
+            filename = f'{scratch_location}/sparsified_data/{dataset_name}/{strategy}/{dataset_name}_{metric}_sparsified_{upto}.csv'
             if os.path.exists(filename):
                 print(f'reading {filename}...', end=' ')
                 sampled_df=pd.read_csv(filename)
                 sampled_df = sampled_df.loc[:, ~sampled_df.columns.str.contains('^Unnamed')]
                 print(' done')
             else:
-                mean_shifts = mean_shift_removal(tmp_graph)
+                mean_shifts = mean_shift_removal(tmp_graph, dataset_name=dataset_name)
             
                 print('back to sparsify_data file....')
                 
@@ -134,19 +134,20 @@ def EL_sparsify(graph, edge_raw_features, strategy='random', upto=0.7, dataset_n
                 
                 sampled_df = modified_df[~modified_df['ts'].isin(top_x_percent_timestamps)]
                 
-                sampled_df.drop(['Unnamed: 0'], axis=1).to_csv(filename)
+                if save:
+                    sampled_df.drop(['Unnamed: 0'], axis=1).to_csv(filename)
             print('data sampling successful.')
         case 'ts_tpr_remove_mss_2':
             # based in maximum mean shift strategy
-            metric = 'mss2'
-            filename = f'{scratch_location}/sparsified_data/{dataset_name}_{metric}_sparsified_{upto}.csv'
+            metric = strategy
+            filename = f'{scratch_location}/sparsified_data/{dataset_name}/{strategy}/{dataset_name}_{metric}_sparsified_{upto}.csv'
             if os.path.exists(filename):
                 print(f'reading {filename}...', end=' ')
                 sampled_df=pd.read_csv(filename)
                 sampled_df = sampled_df.loc[:, ~sampled_df.columns.str.contains('^Unnamed')]
                 print(' done')
             else:
-                mean_shifts = mean_shift_removal2(tmp_graph)
+                mean_shifts = mean_shift_removal2(tmp_graph, dataset_name=dataset_name)
             
                 print('back to sparsify_data file....')
                 
@@ -156,19 +157,20 @@ def EL_sparsify(graph, edge_raw_features, strategy='random', upto=0.7, dataset_n
                 top_x_percent_timestamps = [ts for ts, _ in top_mean_shifts]
                 
                 sampled_df = modified_df[~modified_df['ts'].isin(top_x_percent_timestamps)]
-                sampled_df.drop(['Unnamed: 0'], axis=1).to_csv(filename)
+                if save:
+                    sampled_df.drop(['Unnamed: 0'], axis=1).to_csv(filename)
             print('data sampling successful.')
         case 'ts_tpr_remove_cosine':
             # based on maximum mean shift strategy
-            metric = 'cosine'
-            filename = f'{scratch_location}/sparsified_data/{dataset_name}_{metric}_sparsified_{upto}.csv'
+            metric = strategy
+            filename = f'{scratch_location}/sparsified_data/{dataset_name}/{strategy}/{dataset_name}_{metric}_sparsified_{upto}.csv'
             if os.path.exists(filename):
                 print(f'reading {filename}...', end=' ')
                 sampled_df=pd.read_csv(filename)
                 sampled_df = sampled_df.loc[:, ~sampled_df.columns.str.contains('^Unnamed')]
                 print(' done')
             else:
-                mean_shifts = compute_mean_shifts_with_metrics(tmp_graph, metric='cosine')
+                mean_shifts = compute_mean_shifts_with_metrics(tmp_graph, metric='cosine', dataset_name=dataset_name)
                 
                 print('back to sparsify_data file....')
                 
@@ -178,20 +180,21 @@ def EL_sparsify(graph, edge_raw_features, strategy='random', upto=0.7, dataset_n
                 top_x_percent_timestamps = [ts for ts, _ in top_mean_shifts]
                 
                 sampled_df = modified_df[~modified_df['ts'].isin(top_x_percent_timestamps)]
-                sampled_df.drop(['Unnamed: 0'], axis=1).to_csv(filename)
-                print(filename, ' saved.')
+                if save:
+                    sampled_df.drop(['Unnamed: 0'], axis=1).to_csv(filename)
+                    print(filename, ' saved.')
             print('data sampling successful.')
         case 'ts_tpr_remove_euclidean':
             # based on maximum mean shift strategy
-            metric = 'euclidean'
-            filename = f'{scratch_location}/sparsified_data/{dataset_name}_{metric}_sparsified_{upto}.csv'
+            metric = strategy
+            filename = f'{scratch_location}/sparsified_data/{dataset_name}/{strategy}/{dataset_name}_{metric}_sparsified_{upto}.csv'
             if os.path.exists(filename):
                 print(f'reading {filename}...', end=' ')
                 sampled_df=pd.read_csv(filename)
                 sampled_df = sampled_df.loc[:, ~sampled_df.columns.str.contains('^Unnamed')]
                 print(' done')
             else:
-                mean_shifts = compute_mean_shifts_with_metrics(tmp_graph, metric='euclidean')
+                mean_shifts = compute_mean_shifts_with_metrics(tmp_graph, metric='euclidean', dataset_name=dataset_name)
                 
                 print('back to sparsify_data file....')
                 
@@ -201,20 +204,21 @@ def EL_sparsify(graph, edge_raw_features, strategy='random', upto=0.7, dataset_n
                 top_x_percent_timestamps = [ts for ts, _ in top_mean_shifts]
                 
                 sampled_df = modified_df[~modified_df['ts'].isin(top_x_percent_timestamps)]
-                sampled_df.drop(['Unnamed: 0'], axis=1).to_csv(filename)
-                print(filename, ' saved.')
+                if save:
+                    sampled_df.drop(['Unnamed: 0'], axis=1).to_csv(filename)
+                    print(filename, ' saved.')
             print('data sampling successful.')
         case 'ts_tpr_remove_jaccard':
             # based on maximum mean shift strategy
-            metric = 'jaccard'
-            filename = f'{scratch_location}/sparsified_data/{dataset_name}_{metric}_sparsified_{upto}.csv'
+            metric = strategy
+            filename = f'{scratch_location}/sparsified_data/{dataset_name}/{strategy}/{dataset_name}_{metric}_sparsified_{upto}.csv'
             if os.path.exists(filename):
                 print(f'reading {filename}...', end=' ')
                 sampled_df=pd.read_csv(filename)
                 sampled_df = sampled_df.loc[:, ~sampled_df.columns.str.contains('^Unnamed')]
                 print(' done')
             else:
-                mean_shifts = compute_mean_shifts_with_metrics(tmp_graph, metric='jaccard')
+                mean_shifts = compute_mean_shifts_with_metrics(tmp_graph, metric='jaccard', dataset_name=dataset_name)
             
                 print('back to sparsify_data file....')
                 
@@ -230,14 +234,14 @@ def EL_sparsify(graph, edge_raw_features, strategy='random', upto=0.7, dataset_n
         case 'ts_tpr_remove_wasserstein':
             # based on maximum mean shift strategy
             metric = 'wasserstein'
-            filename = f'{scratch_location}/sparsified_data/{dataset_name}_{metric}_sparsified_{upto}.csv'
+            filename = f'{scratch_location}/sparsified_data/{dataset_name}/{strategy}/{dataset_name}_{strategy}_sparsified_{upto}.csv'
             if os.path.exists(filename):
                 print(f'reading {filename}...', end=' ')
                 sampled_df=pd.read_csv(filename)
                 sampled_df = sampled_df.loc[:, ~sampled_df.columns.str.contains('^Unnamed')]
                 print(' done')
             else:
-                mean_shifts = compute_mean_shifts_with_metrics(tmp_graph, metric='wasserstein')
+                mean_shifts = compute_mean_shifts_with_metrics(tmp_graph, metric='wasserstein', dataset_name=dataset_name)
             
                 print('back to sparsify_data file....')
                 
@@ -252,14 +256,14 @@ def EL_sparsify(graph, edge_raw_features, strategy='random', upto=0.7, dataset_n
         case 'ts_tpr_remove_kl_divergence':
             # based on maximum mean shift strategy
             metric = 'kl_divergence'
-            filename = f'{scratch_location}/sparsified_data/{dataset_name}_{metric}_sparsified_{upto}.csv'
+            filename = f'{scratch_location}/sparsified_data/{dataset_name}/{strategy}/{dataset_name}_{strategy}_sparsified_{upto}.csv'
             if os.path.exists(filename):
                 print(f'reading {filename}...', end=' ')
                 sampled_df=pd.read_csv(filename)
                 sampled_df = sampled_df.loc[:, ~sampled_df.columns.str.contains('^Unnamed')]
                 print(' done')
             else:
-                mean_shifts = compute_mean_shifts_with_metrics(tmp_graph, metric=metric)
+                mean_shifts = compute_mean_shifts_with_metrics(tmp_graph, metric=metric, dataset_name=dataset_name)
             
                 print('back to sparsify_data file....')
                 
@@ -269,19 +273,21 @@ def EL_sparsify(graph, edge_raw_features, strategy='random', upto=0.7, dataset_n
                 top_x_percent_timestamps = [ts for ts, _ in top_mean_shifts]
                 
                 sampled_df = modified_df[~modified_df['ts'].isin(top_x_percent_timestamps)]
-                sampled_df.drop(['Unnamed: 0'], axis=1).to_csv(filename)
+                if save:
+                    sampled_df.drop(['Unnamed: 0'], axis=1).to_csv(filename)
             print('data sampling successful.')
         case 'ts_tpr_remove_jensen_shannon_divergence':
             # based on maximum mean shift strategy
             metric = 'jensen_shannon_divergence'
-            filename = f'{scratch_location}/sparsified_data/{dataset_name}_{metric}_sparsified_{upto}.csv'
+            # filename = f'{scratch_location}/sparsified_data/{dataset_name}_{metric}_sparsified_{upto}.csv'
+            filename = f'{scratch_location}/sparsified_data/{dataset_name}/{strategy}/{dataset_name}_{strategy}_sparsified_{upto}.csv'
             if os.path.exists(filename):
                 print(f'reading {filename}...', end=' ')
                 sampled_df=pd.read_csv(filename)
                 sampled_df = sampled_df.loc[:, ~sampled_df.columns.str.contains('^Unnamed')]
                 print(' done')
             else:
-                mean_shifts = compute_mean_shifts_with_metrics(tmp_graph, metric=metric)
+                mean_shifts = compute_mean_shifts_with_metrics(tmp_graph, metric=metric, dataset_name=dataset_name)
             
                 print('back to sparsify_data file....')
                 
@@ -291,19 +297,21 @@ def EL_sparsify(graph, edge_raw_features, strategy='random', upto=0.7, dataset_n
                 top_x_percent_timestamps = [ts for ts, _ in top_mean_shifts]
                 
                 sampled_df = modified_df[~modified_df['ts'].isin(top_x_percent_timestamps)]
-                sampled_df.drop(['Unnamed: 0'], axis=1).to_csv(filename)
+                if save:
+                    sampled_df.drop(['Unnamed: 0'], axis=1).to_csv(filename)
             print('data sampling successful.')
         case 'ts_tpr_remove_chebyshev':
             # based on maximum mean shift strategy
             metric = 'chebyshev'
-            filename = f'{scratch_location}/sparsified_data/{dataset_name}_{metric}_sparsified_{upto}.csv'
+            # filename = f'{scratch_location}/sparsified_data/{dataset_name}_{metric}_sparsified_{upto}.csv'
+            filename = f'{scratch_location}/sparsified_data/{dataset_name}/{strategy}/{dataset_name}_{strategy}_sparsified_{upto}.csv'
             if os.path.exists(filename):
                 print(f'reading {filename}...', end=' ')
                 sampled_df=pd.read_csv(filename)
                 sampled_df = sampled_df.loc[:, ~sampled_df.columns.str.contains('^Unnamed')]
                 print(' done')
             else:
-                mean_shifts = compute_mean_shifts_with_metrics(tmp_graph, metric=metric)
+                mean_shifts = compute_mean_shifts_with_metrics(tmp_graph, metric=metric, dataset_name=dataset_name)
             
                 print('back to sparsify_data file....')
                 
@@ -313,19 +321,23 @@ def EL_sparsify(graph, edge_raw_features, strategy='random', upto=0.7, dataset_n
                 top_x_percent_timestamps = [ts for ts, _ in top_mean_shifts]
                 
                 sampled_df = modified_df[~modified_df['ts'].isin(top_x_percent_timestamps)]
-                sampled_df.drop(['Unnamed: 0'], axis=1).to_csv(filename)
+                if save:
+                    sampled_df.drop(['Unnamed: 0'], axis=1).to_csv(filename)
             print('data sampling successful.')
         case 'ts_tpr_remove_ter':
             # based on maximum mean shift strategy
             metric = 'TER'
-            filename = f'{scratch_location}/sparsified_data/{dataset_name}_{metric}_sparsified_{upto}.csv'
+            # filename = f'{scratch_location}/sparsified_data/{dataset_name}_{metric}_sparsified_{upto}.csv'
+            filename = f'{scratch_location}/sparsified_data/{dataset_name}/{strategy}/{dataset_name}_{strategy}_sparsified_{upto}.csv'
             if os.path.exists(filename):
                 print(f'reading {filename}...', end=' ')
                 sampled_df=pd.read_csv(filename)
                 sampled_df = sampled_df.loc[:, ~sampled_df.columns.str.contains('^Unnamed')]
                 print(' done')
             else:
-                ter_dict = calculate_temporal_edge_rank(tmp_graph)
+                print(f'In ts_tpr_remove_ter {dataset_name=}')
+                
+                ter_dict = calculate_temporal_edge_rank(tmp_graph, dataset_name=dataset_name)
                 
                 sorted_ter_dict = dict(sorted(ter_dict.items(), key=lambda x: x[1], reverse=True))
                 sorted_ter_dict = list(sorted_ter_dict.items())
@@ -339,18 +351,20 @@ def EL_sparsify(graph, edge_raw_features, strategy='random', upto=0.7, dataset_n
                 top_x_percent_timestamps = [ts for ts, _ in top_mean_shifts]
 
                 sampled_df = tmp_graph[~tmp_graph['ts'].isin(top_x_percent_timestamps)]
-                sampled_df.drop(['Unnamed: 0'], axis=1).to_csv(filename)
+                if save:
+                    sampled_df.drop(['Unnamed: 0'], axis=1).to_csv(filename)
             print('data sampling successful.')
         case 'ts_tpr_remove_combined_ter':
             metric = 'Combined_TER'
-            filename = f'{scratch_location}/sparsified_data/{dataset_name}_{metric}_sparsified_{upto}.csv'
+            # filename = f'{scratch_location}/sparsified_data/{dataset_name}_{metric}_sparsified_{upto}.csv'
+            filename = f'{scratch_location}/sparsified_data/{dataset_name}/{strategy}/{dataset_name}_{strategy}_sparsified_{upto}.csv'
             if os.path.exists(filename):
                 print(f'reading {filename}...', end=' ')
                 sampled_df=pd.read_csv(filename)
                 sampled_df = sampled_df.loc[:, ~sampled_df.columns.str.contains('^Unnamed')]
                 print(' done')
             else:
-                ter_dict = calculate_combined_temporal_edgerank(tmp_graph)
+                ter_dict = calculate_combined_temporal_edgerank(tmp_graph, dataset_name=dataset_name)
                 
                 sorted_ter_dict = dict(sorted(ter_dict.items(), key=lambda x: x[1], reverse=True))
                 sorted_ter_dict = list(sorted_ter_dict.items())
@@ -364,7 +378,20 @@ def EL_sparsify(graph, edge_raw_features, strategy='random', upto=0.7, dataset_n
                 top_x_percent_timestamps = [ts for ts, _ in top_mean_shifts]
 
                 sampled_df = tmp_graph[~tmp_graph['ts'].isin(top_x_percent_timestamps)]
-                sampled_df.drop(['Unnamed: 0'], axis=1).to_csv(filename)
+                if save:
+                    sampled_df.drop(['Unnamed: 0'], axis=1).to_csv(filename)
+            print('data sampling successful.')
+        case 'ts_tpr_remove_rec_mss':
+            metric = 'rec_mss'
+            # filename = f'{scratch_location}/sparsified_data/{dataset_name}_{metric}_sparsified_{upto}.csv'
+            filename = f'{scratch_location}/sparsified_data/{dataset_name}/{strategy}/{dataset_name}_{strategy}_sparsified_{upto}.csv'
+            if os.path.exists(filename):
+                print(f'reading {filename}...', end=' ')
+                sampled_df=pd.read_csv(filename)
+                sampled_df = sampled_df.loc[:, ~sampled_df.columns.str.contains('^Unnamed')]
+                print(' done')
+            else:
+                raise ValueError('Not implemented yet.')
             print('data sampling successful.')
         case _:
             raise ValueError(f'Unknown strategy {strategy}')
@@ -387,17 +414,26 @@ def EL_sparsify(graph, edge_raw_features, strategy='random', upto=0.7, dataset_n
     return EL_graph, EL_edge_raw_features
 
 
-def EL_sparsify_data(dataset_name='wikipedia'):
+def EL_sparsify_data(dataset_name='wikipedia', strategy='random', upto=0.7):
     # Load data and train val test split
     graph = pd.read_csv('{}/processed_data/{}/ml_{}.csv'.format(scratch_location, dataset_name, dataset_name))
     edge_raw_features = np.load('{}/processed_data/{}/ml_{}.npy'.format(scratch_location, dataset_name, dataset_name))
     node_raw_features = np.load('{}/processed_data/{}/ml_{}_node.npy'.format(scratch_location, dataset_name, dataset_name))
     
-    OUT_DF = '{}/sparsified_data/{}/ml_{}.csv'.format(scratch_location, dataset_name, dataset_name)
-    OUT_FEAT = '{}/sparsified_data/{}/ml_{}.npy'.format(scratch_location, dataset_name, dataset_name)
-    OUT_NODE_FEAT = '{}/sparsified_data/{}/ml_{}_node.npy'.format(scratch_location, dataset_name, dataset_name)
+    # OUT_DF = '{}/sparsified_data/{}/ml_{}.csv'.format(scratch_location, dataset_name, dataset_name)
+    # OUT_DF = f'{scratch_location}/sparsified_data/{dataset_name}/{dataset_name}_{strategy}_sparsified_{upto}.csv'
+    os.makedirs(f'{scratch_location}/sparsified_data/{dataset_name}/{strategy}', exist_ok=True)
     
-    EL_graph, EL_edge_raw_features = EL_sparsify(graph, edge_raw_features)
+    OUT_DF = f'{scratch_location}/sparsified_data/{dataset_name}/{strategy}/{dataset_name}_{strategy}_sparsified_{upto}.csv'
+    
+    OUT_FEAT = '{}/sparsified_data/{}/{}/ml_{}.npy'.format(scratch_location, dataset_name, strategy, dataset_name)
+    OUT_NODE_FEAT = '{}/sparsified_data/{}/{}/ml_{}_node.npy'.format(scratch_location, dataset_name, strategy, dataset_name)
+    
+    print(f'In EL_sparsify_data {dataset_name=}')
+
+    
+    EL_graph, EL_edge_raw_features = EL_sparsify(graph, edge_raw_features,
+                                                strategy=strategy, upto=upto, dataset_name=dataset_name)
     
     EL_graph.to_csv(OUT_DF)  # edge-list
     np.save(OUT_FEAT, EL_edge_raw_features)  # edge features
@@ -448,23 +484,26 @@ if __name__ == "__main__":
                         choices=['wikipedia', 'reddit', 'mooc', 'lastfm', 'myket', 'enron', 'SocialEvo', 'uci',
                                 'Flights', 'CanParl', 'USLegis', 'UNtrade', 'UNvote', 'Contacts'],
                         help='Dataset name', default='wikipedia')
-    parser.add_argument('--node_feat_dim', type=int, default=172, help='Number of node raw features')
+    # parser.add_argument('--node_feat_dim', type=int, default=172, help='Number of node raw features')
+    parser.add_argument('--upto', type=float, help='sparsify upto', default=0.7)
+    parser.add_argument('--strategy', type=str, help='sparsification strategy', default='random')
+    
 
     args = parser.parse_args()
 
     print(f'Sparsifying dataset {args.dataset_name}...')
-    if args.dataset_name in ['enron', 'SocialEvo', 'uci']:
+    if args.dataset_name in ['enron', 'SocialEvo']:  # DONE: remove UCI from here
         Path("{}/sparsified_data/{}/".format(scratch_location, args.dataset_name)).mkdir(parents=True, exist_ok=True)
         copy_tree("{}/DG_data/{}/".format(scratch_location, args.dataset_name), "{}/sparsified_data/{}/".format(scratch_location, args.dataset_name))
-        print(f'Not implemented for enron, SocialEvo, uci graph yet.')
+        print(f'Not implemented for enron, SocialEvo graph yet.')
     else:
         Path("{}/sparsified_data/{}/".format(scratch_location, args.dataset_name)).mkdir(parents=True, exist_ok=True)
         copy_tree("{}/DG_data/{}/".format(scratch_location, args.dataset_name), "{}/sparsified_data/{}/".format(scratch_location, args.dataset_name))
         # bipartite dataset
         if args.dataset_name in ['wikipedia', 'reddit', 'mooc', 'lastfm', 'myket']:
-            EL_sparsify_data(dataset_name=args.dataset_name)
+            EL_sparsify_data(dataset_name=args.dataset_name, strategy=args.strategy, upto=args.upto)
         else:
-            EL_sparsify_data(dataset_name=args.dataset_name)
+            EL_sparsify_data(dataset_name=args.dataset_name, strategy=args.strategy, upto=args.upto)
         print(f'{args.dataset_name} is processed successfully.')
 
         if args.dataset_name not in ['myket']:

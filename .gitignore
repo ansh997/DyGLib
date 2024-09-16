@@ -143,3 +143,8 @@ colabs/log.txt
 artifacts
 examples/jax/jax-llm/proteins-base/
 
+# folders
+old_runs/
+
+# runs files
+LP_ts_tpr_remove_*.sh

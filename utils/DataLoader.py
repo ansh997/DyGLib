@@ -43,9 +43,9 @@ def get_idx_data_loader(indices_list: list, batch_size: int, shuffle: bool):
     dataset = CustomizedDataset(indices_list=indices_list)
 
     data_loader = DataLoader(dataset=dataset,
-                             batch_size=batch_size,
-                             shuffle=shuffle,
-                             drop_last=False)
+                            batch_size=batch_size,
+                            shuffle=shuffle,
+                            drop_last=False)
     return data_loader
 
 

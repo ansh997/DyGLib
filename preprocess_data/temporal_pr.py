@@ -1,3 +1,4 @@
+import getpass
 import warnings
 warnings.filterwarnings("ignore")
 import os
@@ -22,7 +23,7 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..')) # 
 sys.path.append(project_root)
 
 from TPR import temporal_pagerank
-
+scratch_location = rf'/scratch/{getpass.getuser()}'
 
 # Function to convert results to dictionary
 def get_pagerank_scores(tpr_computer):
@@ -380,13 +381,33 @@ def optimized_calc_inc_timestamp_pagerank(graph):
 #     return timestamp_pagerank
 
 
-def temporal_pagerank_heap_np(E, beta, alpha, check_evolution=False):
+def temporal_pagerank_heap_np(E, beta, alpha, check_evolution=False, mmap_file=f'{scratch_location}/ts_tpr_data.dat', dataset_name=None):
+    print(f'In temporal_pagerank_heap_np {dataset_name=}')
+    if dataset_name is None:
+        raise ValueError('Please provide dataset name')
+    else:
+        mmap_file=f'{scratch_location}/{dataset_name}_ts_tpr_data.dat'
+        print(f'{mmap_file=}')
+        
     print('\t inside tpr heap method')
+    
     # Convert edges to a NumPy array
     E = np.array(E, dtype=[('u', int), ('v', int), ('t', float)])
     
     # Get the maximum node index to size the r and s arrays appropriately
     max_node = max(E['u'].max(), E['v'].max())
+    
+    ts_tpr_mmap = None
+    if check_evolution:
+        if os.path.exists(mmap_file):
+            print('Loading precomputed memory-mapped array...', end='\r')
+            ts_tpr_mmap = np.memmap(mmap_file,
+                                # dtype=[('t', float), ('r', float, max_node + 1)],
+                                dtype = np.dtype([('t', float), ('r', float, (max_node + 1,))]),
+                                mode='r+')
+            print('Precomputed memory-mapped array loaded.      ')
+            check_evolution=False
+            # return r, ts_tpr_mmap
     
     # Initialize r and s arrays
     r = np.zeros(max_node + 1)
@@ -430,12 +451,36 @@ def temporal_pagerank_heap_np(E, beta, alpha, check_evolution=False):
         r /= total_r
     
     if check_evolution:
-        ts_tpr = np.array(ts_tpr, dtype=[('t', float), ('r', float, max_node + 1)])
+        # ts_tpr = np.array(ts_tpr, dtype=[('t', float), ('r', float, max_node + 1)])
+        print('Creating a memory mapped array...', end='\r')
+        
+        # Create a memory-mapped array with an estimated size
+        num_entries = len(ts_tpr)  # This is the number of timestamps collected
+        ts_tpr_mmap = np.memmap(mmap_file,
+                            # dtype=[('t', float), ('r', float, max_node + 1)],
+                            dtype = np.dtype([('t', float), ('r', float, (max_node + 1,))]),
+                            mode='w+', shape=(num_entries,))
+        
+        # Fill the memory-mapped array with collected data
+        for idx, (t, r_array) in enumerate(ts_tpr):
+            ts_tpr_mmap[idx]['t'] = t
+            ts_tpr_mmap[idx]['r'][:len(r_array)] = r_array
+        
+        # Ensure all data is written to disk
+        ts_tpr_mmap.flush()
+        
+        # Optionally, reopen the memory-mapped array to resize it
+        ts_tpr_mmap = np.memmap(mmap_file,
+                            # dtype=[('t', float), ('r', float, max_node + 1)],
+                            dtype = np.dtype([('t', float), ('r', float, (max_node + 1,))]),
+                            mode='r+', shape=(num_entries,))  # Resize to the actual number of entries
+
+        print('Memory mapped array created.         ')
     
-    return r, ts_tpr
+    return r, ts_tpr_mmap
 
 
-def mean_shift_removal(_graph_df, beta = 0.85, alpha = 0.15):
+def mean_shift_removal(_graph_df, beta = 0.85, alpha = 0.15, dataset_name=''):
     print('in mss removal method....')
     graph_df = _graph_df.copy(deep=True)
     
@@ -446,7 +491,7 @@ def mean_shift_removal(_graph_df, beta = 0.85, alpha = 0.15):
     # Convert E to a more readable format if needed
     edges_new = [(int(u), int(v), float(t)) for u, v, t in edges]
     print('running temporal page rank method...')
-    _, ts_tpr= temporal_pagerank_heap_np(edges_new, beta, alpha, True)
+    _, ts_tpr= temporal_pagerank_heap_np(edges_new, beta, alpha, True, dataset_name)
     print('Done.')
     
     print('sorting started....')
@@ -455,9 +500,14 @@ def mean_shift_removal(_graph_df, beta = 0.85, alpha = 0.15):
     
 
     # Extract timestamps and PageRank values
-    timestamps, pagerank_arrays = zip(*ts_tpr)
-    timestamps = np.array(timestamps)
-    pagerank_arrays = np.array(pagerank_arrays)
+    # timestamps, pagerank_arrays = zip(*ts_tpr)
+    # timestamps = np.array(timestamps)
+    # pagerank_arrays = np.array(pagerank_arrays)
+    
+    # Since ts_tpr_mmap is already a memory-mapped array, we can use it directly
+    # Extract timestamps and PageRank values from the memory-mapped array
+    timestamps = ts_tpr['t']
+    pagerank_arrays = ts_tpr['r']
 
     # Calculate mean shifts between consecutive timestamps
     mean_shifts = []
@@ -479,7 +529,7 @@ def mean_shift_removal(_graph_df, beta = 0.85, alpha = 0.15):
     return mean_shifts
 
 
-def mean_shift_removal2(_graph_df, beta = 0.85, alpha = 0.15):
+def mean_shift_removal2(_graph_df, beta = 0.85, alpha = 0.15, batch_size=100, dataset_name=''):
     print('in mss removal method....')
     graph_df = _graph_df.copy(deep=True)
     
@@ -490,7 +540,7 @@ def mean_shift_removal2(_graph_df, beta = 0.85, alpha = 0.15):
     # Convert E to a more readable format if needed
     edges_new = [(int(u), int(v), float(t)) for u, v, t in edges]
     print('running temporal page rank method...')
-    _, ts_tpr= temporal_pagerank_heap_np(edges_new, beta, alpha, True)
+    _, ts_tpr= temporal_pagerank_heap_np(edges_new, beta, alpha, True, dataset_name)
     print('Done.')
     
     print('sorting started....')
@@ -498,21 +548,37 @@ def mean_shift_removal2(_graph_df, beta = 0.85, alpha = 0.15):
     print('sorting Completed.')
     
 
-    # Extract timestamps and PageRank values
-    timestamps, pagerank_arrays = zip(*ts_tpr)
-    timestamps = np.array(timestamps)
-    pagerank_arrays = np.array(pagerank_arrays)
+    # # Extract timestamps and PageRank values
+    # timestamps, pagerank_arrays = zip(*ts_tpr)
+    # timestamps = np.array(timestamps)
+    # pagerank_arrays = np.array(pagerank_arrays)
+    
+    # Since ts_tpr_mmap is already a memory-mapped array, we can use it directly
+    # Extract timestamps and PageRank values from the memory-mapped array
+    timestamps = ts_tpr['t']
+    pagerank_arrays = ts_tpr['r']
 
     # Calculate mean shifts between consecutive timestamps
     mean_shifts = []
-    print('Before calc')
-    for i in tqdm(range(1, len(timestamps)), desc='running mean shift'):
-        # if i % 100 ==0:
-        # print('calculating mean shift....')
-        prev_pagerank = np.mean(pagerank_arrays[i - 1])
-        curr_pagerank = np.mean(pagerank_arrays[i])
-        mean_shift = np.mean(np.abs(curr_pagerank - prev_pagerank))
-        mean_shifts.append((timestamps[i], mean_shift))
+    total_batches = int(np.ceil(len(timestamps) / batch_size))    
+    print(f'Processing in batches of {batch_size}...')
+    for batch_start in range(0, len(timestamps), batch_size):
+        batch_end = min(batch_start + batch_size, len(timestamps))
+        
+        print(f'Processing batch {batch_start // batch_size + 1} / {total_batches}...')
+        for i in tqdm(range(batch_start + 1, batch_end), desc=f'Processing...'):
+            prev_pagerank = np.array(pagerank_arrays[i - 1])
+            curr_pagerank = np.array(pagerank_arrays[i])
+            mean_shift = np.mean(np.abs(curr_pagerank - prev_pagerank))
+            mean_shifts.append((timestamps[i], mean_shift))
+    
+    # for i in tqdm(range(1, len(timestamps)), desc='running mean shift'):
+    #     # if i % 100 ==0:
+    #     # print('calculating mean shift....')
+    #     prev_pagerank = np.mean(pagerank_arrays[i - 1])
+    #     curr_pagerank = np.mean(pagerank_arrays[i])
+        # mean_shift = np.mean(np.abs(curr_pagerank - prev_pagerank))
+        # mean_shifts.append((timestamps[i], mean_shift))
 
     # Identify timesteps with highest mean shift
     print('Done.')
@@ -523,7 +589,7 @@ def mean_shift_removal2(_graph_df, beta = 0.85, alpha = 0.15):
     return mean_shifts
 
 
-def compute_mean_shifts_with_metrics(graph_df, beta=0.85, alpha=0.15, metric='mean_shift'):
+def _compute_mean_shifts_with_metrics(graph_df, beta=0.85, alpha=0.15, metric='mean_shift'):
     """
     Compute mean shifts and distance metrics between consecutive PageRank vectors 
     in a continuous time dynamic graph.
@@ -552,6 +618,7 @@ def compute_mean_shifts_with_metrics(graph_df, beta=0.85, alpha=0.15, metric='me
     print('Sorting completed.')
     
     # Extract timestamps and PageRank values
+    # TODO: Batched implementations of this
     timestamps, pagerank_arrays = zip(*ts_tpr)
     timestamps = np.array(timestamps)
     pagerank_arrays = np.array(pagerank_arrays)
@@ -598,37 +665,157 @@ def compute_mean_shifts_with_metrics(graph_df, beta=0.85, alpha=0.15, metric='me
     
     return results
 
+
+def compute_mean_shifts_with_metrics(graph_df, beta=0.85, alpha=0.15, metric='mean_shift', batch_size=100, dataset_name=''):
+    """
+    Compute mean shifts and distance metrics between consecutive PageRank vectors 
+    in a continuous time dynamic graph, processing in batches.
+    
+    Parameters:
+        graph_df (pd.DataFrame): DataFrame containing the graph edges with columns ['u', 'i', 'ts'].
+        beta (float): Damping factor for PageRank.
+        alpha (float): Alpha factor for temporal PageRank.
+        metric (str): Metric to use for mean shift ('mean_shift', 'euclidean', 'jaccard', 'cosine').
+        batch_size (int): Number of timestamps to process in each batch.
+    
+    Returns:
+        list: List of tuples containing timestamp and the selected metric.
+    """
+    print(f'Starting mean shift and metrics computation with {batch_size=}...')
+    
+    # Extract edges from DataFrame
+    edges = graph_df[['u', 'i', 'ts']].values
+    edges_new = [(int(u), int(v), float(t)) for u, v, t in edges]
+    
+    print('Running temporal PageRank computation...')
+    _, ts_tpr = temporal_pagerank_heap_np(edges_new, beta, alpha, check_evolution=True, dataset_name=dataset_name)
+    print('Temporal PageRank computation completed.')
+    
+    print('Sorting timestamps...')
+    # ts_tpr.sort(key=lambda x: x[0])
+    sorted(ts_tpr, key=lambda x: x[0])    
+    print('Sorting completed.')
+    
+    # Extract timestamps and PageRank values
+    # timestamps, pagerank_arrays = zip(*ts_tpr)
+    # timestamps = np.array(timestamps)
+    # pagerank_arrays = np.array(pagerank_arrays)
+    
+    # Since ts_tpr_mmap is already a memory-mapped array, we can use it directly
+    # Extract timestamps and PageRank values from the memory-mapped array
+    timestamps = ts_tpr['t']
+    pagerank_arrays = ts_tpr['r']
+    
+    results = []
+    total_batches = int(np.ceil(len(timestamps) / batch_size))
+    
+    print(f'Processing in batches of {batch_size}...')
+    for batch_start in range(0, len(timestamps), batch_size):
+        batch_end = min(batch_start + batch_size, len(timestamps))
+        
+        print(f'Processing batch {batch_start // batch_size + 1} / {total_batches}...')
+        for i in tqdm(range(batch_start + 1, batch_end), desc=f'Processing for {metric}...'):
+            prev_pagerank = np.array(pagerank_arrays[i - 1])
+            curr_pagerank = np.array(pagerank_arrays[i])
+            
+            if metric == 'mean_shift':
+                value = np.mean(np.abs(curr_pagerank - prev_pagerank))
+            elif metric == 'euclidean':
+                value = np.linalg.norm(curr_pagerank - prev_pagerank)
+            elif metric == 'jaccard':
+                value = pairwise_distances(curr_pagerank.reshape(1, -1), prev_pagerank.reshape(1, -1), metric='jaccard')[0][0]
+            elif metric == 'cosine':
+                value = np.dot(curr_pagerank, prev_pagerank) / (np.linalg.norm(curr_pagerank) * np.linalg.norm(prev_pagerank))
+            elif metric == 'wasserstein':
+                value = wasserstein_distance(prev_pagerank, curr_pagerank)
+            elif metric == 'kl_divergence':
+                value = np.sum(rel_entr(prev_pagerank, curr_pagerank))
+            elif metric == 'jensen_shannon_divergence':
+                value = jensenshannon(prev_pagerank, curr_pagerank) 
+            elif metric == 'chebyshev':
+                value = chebyshev(prev_pagerank, curr_pagerank)
+            else:
+                raise ValueError(f"Unsupported metric: {metric} should be in mean_shift, euclidean, jaccard, cosine.")
+            
+            results.append((timestamps[i], value))
+    
+    print('Mean shifts and metrics calculation completed.')
+    
+    if metric != 'cosine':
+        results.sort(key=lambda x: x[1], reverse=True)
+    print('Sorting by the selected metric completed.')
+    
+    return results
+
+
+
 def compute_overall_outgoing_degree(E):
     return Counter(E['u'])
 
-def calculate_temporal_edge_rank(_graph_df, beta=0.85, alpha=0.15):
+def calculate_temporal_edge_rank(_graph_df, beta=0.85, alpha=0.15, batch_size=1000, dataset_name=''):
     graph_df = _graph_df.copy(deep=True)
     
     # Extract nodes, edges, and timestamps as a list of tuples
     edges = graph_df[['u', 'i', 'ts']].values.tolist()
     edges = [(int(u), int(v), float(t)) for u, v, t in edges]
     
-    _, ts_tpr = temporal_pagerank_heap_np(edges, beta, alpha, True)
+    print(f'In calculate_temporal_edge_rank {dataset_name=}')
+    
+    _, ts_tpr = temporal_pagerank_heap_np(edges, beta, alpha, True, dataset_name=dataset_name)
     
     # Create numpy array for efficient operations
     edges_array = np.array(edges, dtype=[('u', int), ('v', int), ('t', float)])
     temporal_outgoing_degree = compute_overall_outgoing_degree(edges_array)
     
     # Extract timestamps and PageRank values
-    timestamps, pagerank_arrays = zip(*ts_tpr)
-    timestamps = np.array(timestamps)
-    pagerank_arrays = np.array(pagerank_arrays)
+    # timestamps, pagerank_arrays = zip(*ts_tpr)
+    # timestamps = np.array(timestamps)
+    # pagerank_arrays = np.array(pagerank_arrays)
+    
+    # Since ts_tpr_mmap is already a memory-mapped array, we can use it directly
+    # Extract timestamps and PageRank values from the memory-mapped array
+    timestamps = ts_tpr['t']
+    pagerank_arrays = ts_tpr['r']
     
     ts_to_node_dict = graph_df.groupby('ts')['u'].apply(np.array).to_dict()
+    num_timestamps = len(timestamps)
     
     ter_dict = {}
     
-    for i in tqdm(range(len(timestamps)), desc='Calculating TER'):
-        r = pagerank_arrays[i]
-        ts = timestamps[i]
-        node_list = ts_to_node_dict[ts]
-        ter = r[node_list] / np.vectorize(temporal_outgoing_degree.__getitem__)(node_list)
-        ter_dict[ts] = np.sum(ter)
+    # Process in batches
+    for start_idx in (range(0, num_timestamps, batch_size)):
+        end_idx = min(start_idx + batch_size, num_timestamps)
+        
+        # Get the batch of timestamps and corresponding PageRank arrays
+        batch_timestamps = timestamps[start_idx:end_idx]
+        batch_pagerank_arrays = pagerank_arrays[start_idx:end_idx]
+        
+        # Prepare to store results for this batch
+        batch_ter_dict = {}
+        
+        for i in tqdm(range(len(batch_timestamps)), desc='Calculating TER'):
+            ts = batch_timestamps[i]
+            r = batch_pagerank_arrays[i]
+            
+            # Get node list for the current timestamp
+            node_list = ts_to_node_dict[ts]
+            
+            # Compute Temporal EdgeRank (TER) for the current batch
+            node_out_deg = np.array([temporal_outgoing_degree[node] for node in node_list])
+            ter = r[node_list] / node_out_deg
+            
+            # Store result for the current timestamp
+            batch_ter_dict[ts] = np.sum(ter)
+        
+        # Update the global ter_dict with batch results
+        ter_dict.update(batch_ter_dict)
+    
+    # for i in tqdm(range(len(timestamps)), desc='Calculating TER'):
+    #     r = pagerank_arrays[i]
+    #     ts = timestamps[i]
+    #     node_list = ts_to_node_dict[ts]
+    #     ter = r[node_list] / np.vectorize(temporal_outgoing_degree.__getitem__)(node_list)
+    #     ter_dict[ts] = np.sum(ter)
     
     return ter_dict
 
@@ -667,7 +854,7 @@ def compute_timestamp_specific_outgoing_degree(edges):
     return ts_outgoing_degree
 
 
-def compute_cumulative_timestamp_specific_outgoing_degree(graph_df):
+def compute_cumulative_timestamp_specific_outgoing_degree(graph_df, batch_size=1000):
     # Sort by timestamp to ensure cumulative counting is correct
     graph_df = graph_df.sort_values('ts')
     
@@ -677,21 +864,42 @@ def compute_cumulative_timestamp_specific_outgoing_degree(graph_df):
     # Initialize result dictionary
     ts_outgoing_degree = {}
     
-    # Iterate through the DataFrame row by row
-    for ts, group in tqdm(graph_df.groupby('ts'), desc="Calculating cumulative outgoing degree"):
-        # Update cumulative counts
-        for u in group['u']:
-            cumulative_outgoing_degree[u] += 1
+    # # Iterate through the DataFrame row by row
+    # for ts, group in tqdm(graph_df.groupby('ts'), desc="Calculating cumulative outgoing degree"):
+    #     # Update cumulative counts
+    #     for u in group['u']:
+    #         cumulative_outgoing_degree[u] += 1
             
-        # Store the current cumulative counts in the result dictionary
-        ts_outgoing_degree[ts] = dict(cumulative_outgoing_degree)
+    #     # Store the current cumulative counts in the result dictionary
+    #     ts_outgoing_degree[ts] = dict(cumulative_outgoing_degree)
+    
+    # Get unique timestamps
+    unique_timestamps = graph_df['ts'].unique()
+    
+    # Process the timestamps in batches
+    for start_idx in tqdm(range(0, len(unique_timestamps), batch_size), desc="Calculating cumulative outgoing degree"):
+        end_idx = min(start_idx + batch_size, len(unique_timestamps))
+        
+        # Get the batch of timestamps
+        batch_timestamps = unique_timestamps[start_idx:end_idx]
+        
+        # Filter the DataFrame for the current batch of timestamps
+        batch_df = graph_df[graph_df['ts'].isin(batch_timestamps)]
+        
+        # Group by timestamp and update cumulative counts
+        for ts, group in batch_df.groupby('ts'):
+            for u in group['u']:
+                cumulative_outgoing_degree[u] += 1
+                
+            # Store the current cumulative counts in the result dictionary
+            ts_outgoing_degree[ts] = dict(cumulative_outgoing_degree)
     
     return ts_outgoing_degree
 
 
 
 # Function to compute Temporal EdgeRank for each edge
-def compute_temporal_edgerank(graph_df, beta=0.85, alpha=0.15, gamma=0.5):
+def _compute_temporal_edgerank(graph_df, beta=0.85, alpha=0.15, gamma=0.5, dataset_name=''):
     edges_list = graph_df[['u', 'i', 'ts']].values
     edges = np.array(
         list(zip(edges_list[:, 0].astype(int), edges_list[:, 1].astype(int), edges_list[:, 2].astype(float))),
@@ -700,7 +908,7 @@ def compute_temporal_edgerank(graph_df, beta=0.85, alpha=0.15, gamma=0.5):
     
     # edges
     print(f'Calculating TPR...', end='\r')
-    global_tpr, ts_tpr = temporal_pagerank_heap_np(edges, beta, alpha, True)
+    global_tpr, ts_tpr = temporal_pagerank_heap_np(edges, beta, alpha, True, dataset_name)
     # Convert ts_tpr to a dictionary with timestamps as keys
     ts_tpr = {row['t']: row['r'] for row in ts_tpr}
     print(f'Calculated TPR      ')
@@ -723,9 +931,76 @@ def compute_temporal_edgerank(graph_df, beta=0.85, alpha=0.15, gamma=0.5):
         
     return ter_dict
 
-# Main function to call and calculate Combined Temporal EdgeRank
-def calculate_combined_temporal_edgerank(graph_df, beta=0.85, alpha=0.15, gamma=0.5):
+
+# Function to compute Temporal EdgeRank for each edge
+def compute_temporal_edgerank(graph_df, beta=0.85, alpha=0.15, gamma=0.5, batch_size=1000, dataset_name=''):
+    edges_list = graph_df[['u', 'i', 'ts']].values
+    edges = np.array(
+        list(zip(edges_list[:, 0].astype(int), edges_list[:, 1].astype(int), edges_list[:, 2].astype(float))),
+        dtype=[('u', int), ('v', int), ('t', float)]
+    )
     
-    return compute_temporal_edgerank(graph_df, beta, alpha, gamma)
+    print(f'Calculating TPR...', end='\r')
+    global_tpr, ts_tpr_mmap = temporal_pagerank_heap_np(edges, beta, alpha, True, dataset_name=dataset_name)
+    
+    print(f'Calculated TPR      ')
+    
+    # Convert global_tpr and ts_out_deg to appropriate formats
+    global_out_deg = compute_global_outgoing_degree(edges)
+    ts_out_deg = compute_cumulative_timestamp_specific_outgoing_degree(graph_df[['u', 'i', 'ts']])
+    
+    ter_dict = {}
+
+    # Access the memory-mapped array
+    ts_tpr_shape = len(ts_tpr_mmap)
+    
+    # Process edges in batches
+    for start_idx in tqdm(range(0, len(edges), batch_size), desc='Processing'):
+        end_idx = min(start_idx + batch_size, len(edges))
+        
+        # Get the batch of edges
+        batch_edges = edges[start_idx:end_idx]
+        
+        # Extract timestamps from the batch
+        batch_timestamps = np.array([t for _, _, t in batch_edges])
+        
+        # Find the indices of these timestamps in the memory-mapped array
+        indices = np.searchsorted(ts_tpr_mmap['t'], batch_timestamps)
+        
+        # Process each edge in the batch
+        for i, (u, _, t) in enumerate(batch_edges):
+            idx = indices[i]
+            
+            if idx < ts_tpr_shape and ts_tpr_mmap['t'][idx] == t:
+                # Access the PageRank values for the given timestamp
+                TER_global = global_tpr[u] / global_out_deg[u]
+                TER_ts = ts_tpr_mmap[idx]['r'][u] / ts_out_deg[t][u]
+                ter_ts = gamma * TER_global + (1 - gamma) * TER_ts
+                ter_dict[t] = ter_ts
+            else:
+                # Handle the case where the timestamp is not found in the memory-mapped array
+                ter_dict[t] = 0  # Or another suitable default value
+    
+    # for u, _, t in tqdm(edges, desc='Processing'):
+    #     # Find the index of the timestamp `t` in the memory-mapped array
+    #     # This requires a way to map timestamps to indices; here we assume sorted order and a search
+    #     idx = np.searchsorted(ts_tpr_mmap['t'], t)
+        
+    #     if idx < ts_tpr_shape and ts_tpr_mmap['t'][idx] == t:
+    #         # Access the PageRank values for the given timestamp
+    #         TER_global = global_tpr[u] / global_out_deg[u]
+    #         TER_ts = ts_tpr_mmap[idx]['r'][u] / ts_out_deg[t][u]
+    #         ter_ts = gamma * TER_global + (1 - gamma) * TER_ts
+    #         ter_dict[t] = ter_ts
+    #     else:
+    #         # Handle the case where the timestamp is not found in the memory-mapped array
+    #         ter_dict[t] = 0  # Or another suitable default value
+    
+    return ter_dict
+
+# Main function to call and calculate Combined Temporal EdgeRank
+def calculate_combined_temporal_edgerank(graph_df, beta=0.85, alpha=0.15, gamma=0.5, dataset_name=''):
+    
+    return compute_temporal_edgerank(graph_df, beta, alpha, gamma, dataset_name=dataset_name)
 
 
